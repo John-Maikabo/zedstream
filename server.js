@@ -155,6 +155,10 @@ app.get('/proctor.html', async (req, res, next) => {
     next();
 });
 
+// The public site is the ZedStream podcast studio. The exam portals keep their
+// own paths (/index.html, /proctor.html, /student.html) and are unaffected.
+app.get('/', (req, res) => res.redirect(302, '/zedstream/'));
+
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
