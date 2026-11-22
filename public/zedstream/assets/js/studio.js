@@ -23,6 +23,8 @@
   var micOn = true;
   var camOn = true;
   var joined = false;
+  var linkTitle = '';
+  var netStarted = false;
   var prefs = { background: 'none', quality: '1080', episode: '' };
 
   function $(id) { return document.getElementById(id); }
@@ -46,8 +48,12 @@
     var sessionId = params.get('s');
     var token = params.get('invite');
     var s = ZS.state();
+    linkTitle = params.get('title') || '';
 
     if (token) {
+      // Joining from an invitation link is always a guest, even on a device
+      // that does not hold the host's local session data.
+      role = 'guest';
       s.sessions.forEach(function (ses) {
         (ses.guests || []).forEach(function (g) {
           if (g.token === token) { session = ses; guest = g; role = 'guest'; }
@@ -70,7 +76,16 @@
 
   function contextTitle() {
     if (session) return session.episodeTitle || 'Untitled episode';
+    if (linkTitle) return linkTitle;
     return 'Ad-hoc recording session';
+  }
+
+  function roomKey() {
+    var params = new URLSearchParams(location.search);
+    if (session) return session.id;
+    var fromLink = params.get('s');
+    if (fromLink) return fromLink;
+    return 'studio-lobby';
   }
 
   function fillContext() {
@@ -135,8 +150,23 @@
       '<span class="' + (camOn ? 'on' : 'off') + '">' + zIcon(camOn ? 'video' : 'videoOff') + '</span>' +
       '</span></div>';
 
+    var peers = window.ZSN ? window.ZSN.list() : [];
+    peers.forEach(function (peer) {
+      var connection = peer.connection === 'connected' ? 'in studio' : (peer.connection || 'connecting');
+      html += '<div class="person">' +
+        '<span class="avatar" style="background:linear-gradient(140deg,#5b21b6,#2b1050)">' + ZS.esc(ZS.initials(peer.name)) + '</span>' +
+        '<span class="person-meta"><strong>' + ZS.esc(peer.name) + '</strong>' +
+        '<small>' + (peer.role === 'host' ? 'Host' : 'Guest') + ' · ' + ZS.esc(connection) + '</small></span>' +
+        '<span class="person-icons">' +
+        '<span class="' + (peer.mic ? 'on' : 'off') + '">' + zIcon(peer.mic ? 'mic' : 'micOff') + '</span>' +
+        '<span class="' + (peer.cam ? 'on' : 'off') + '">' + zIcon(peer.cam ? 'video' : 'videoOff') + '</span>' +
+        '</span></div>';
+    });
+
+    var connected = peers.map(function (peer) { return String(peer.name || '').toLowerCase(); });
     guests.forEach(function (g) {
       if (guest && g.id === guest.id) return;
+      if (connected.indexOf(String(g.name || '').toLowerCase()) !== -1) return;
       html += '<div class="person">' +
         '<span class="avatar" style="background:linear-gradient(140deg,#3f3f56,#242433)">' + ZS.esc(ZS.initials(g.name || g.email)) + '</span>' +
         '<span class="person-meta"><strong>' + ZS.esc(g.name || 'Guest') + '</strong>' +
@@ -145,6 +175,7 @@
     });
 
     list.innerHTML = html;
+    if (window.zHydrateIcons) window.zHydrateIcons();
   }
 
   /* ---------- tiles ---------- */
@@ -173,7 +204,29 @@
       '</div><span class="tile-signal">HD</span></div></div>'
     );
 
-    if (role === 'guest') {
+    var peers = window.ZSN ? window.ZSN.list() : [];
+    peers.forEach(function (peer) {
+      var live = peer.connection === 'connected';
+      var hasVideo = !!peer.videoStream && peer.cam;
+      tiles.push(
+        '<div class="tile" id="peerTile-' + ZS.esc(peer.id) + '">' +
+        '<video id="peerVideo-' + ZS.esc(peer.id) + '" autoplay playsinline></video>' +
+        '<div class="tile-empty' + (hasVideo ? ' hidden' : '') + '" id="peerEmpty-' + ZS.esc(peer.id) + '">' +
+        '<span class="avatar">' + ZS.esc(ZS.initials(peer.name)) + '</span>' +
+        '<strong>' + ZS.esc(peer.name) + '</strong>' +
+        '<span>' + (live ? (peer.cam ? 'Connected' : 'Camera off') : 'Connecting…') + '</span></div>' +
+        '<div class="tile-top"><span class="tile-name">' + ZS.esc(peer.name) +
+        ' <span class="role">' + (peer.role === 'host' ? 'Host' : 'Guest') + '</span></span>' +
+        '<span class="tile-signal' + (live ? '' : ' warn') + '">' + zIcon(live ? 'signal' : 'clock') +
+        (live ? 'Live' : 'Linking') + '</span></div>' +
+        '<div class="tile-bottom"><div class="tile-status">' +
+        '<span class="mic-chip' + (peer.mic ? '' : ' muted') + '">' + zIcon(peer.mic ? 'mic' : 'micOff') + '</span>' +
+        (peer.sharing ? '<span class="badge badge-violet" style="height:22px">' + zIcon('monitor') + 'Sharing</span>' : '') +
+        '</div><span class="tile-signal">WebRTC</span></div></div>'
+      );
+    });
+
+    if (!peers.length && role === 'guest') {
       tiles.push(
         '<div class="tile">' +
         '<div class="tile-empty"><span class="pulse-ring"></span>' +
@@ -182,7 +235,7 @@
         '<div class="tile-top"><span class="tile-name">Host <span class="role">Host</span></span>' +
         '<span class="tile-signal warn">' + zIcon('clock') + 'Waiting</span></div></div>'
       );
-    } else if (waiting.length) {
+    } else if (!peers.length && waiting.length) {
       waiting.forEach(function (g) {
         tiles.push(
           '<div class="tile">' +
@@ -193,7 +246,7 @@
           '<span class="tile-signal warn">' + zIcon('clock') + 'Invited</span></div></div>'
         );
       });
-    } else {
+    } else if (!peers.length) {
       tiles.push(
         '<div class="tile">' +
         '<div class="tile-empty"><span class="pulse-ring"></span>' +
@@ -206,6 +259,14 @@
 
     grid.className = 'video-grid' + (tiles.length === 1 ? ' solo' : tiles.length >= 3 ? ' triple' : '');
     grid.innerHTML = tiles.join('');
+
+    peers.forEach(function (peer) {
+      var peerVideo = $('peerVideo-' + peer.id);
+      if (peerVideo && peer.videoStream) {
+        if (peerVideo.srcObject !== peer.videoStream) peerVideo.srcObject = peer.videoStream;
+        peerVideo.play().catch(function () { /* autoplay may need a gesture */ });
+      }
+    });
 
     var video = $('selfVideo');
     if (video) {
@@ -287,6 +348,7 @@
         updateSelfChrome();
       }
       startMeter(stream);
+      if (joined && window.ZSN) window.ZSN.setLocalStream(stream);
       return stream;
     }).catch(function (err) {
       var msg = err && err.name === 'NotAllowedError'
@@ -551,7 +613,7 @@
   /* ============================================================
      sharing: screen / window, song or album, movie, document
      ============================================================ */
-  var share = { mode: 'none', queue: [], index: 0, screen: null, volume: 0.85, muted: false };
+  var share = { mode: 'none', queue: [], index: 0, screen: null, volume: 0.85, muted: false, remote: null, published: false };
 
   function setShareHead(kind, title, sub) {
     $('shareKind').textContent = kind;
@@ -570,6 +632,7 @@
     }
     if (audio) {
       audio.pause();
+      audio.srcObject = null;
       audio.removeAttribute('src');
     }
     $('shareImage').classList.add('hidden');
@@ -692,6 +755,14 @@
 
     syncShareButton();
     updateShareProgress();
+
+    if (isAudio) publishElementShare(audio, 'audio', item.name);
+    else if (isVideo) publishElementShare(video, 'video', item.name);
+    else {
+      shareToRoom('document', item.name, null);
+      sendDocToRoom(item);
+    }
+
     if (window.zHydrateIcons) window.zHydrateIcons();
   }
 
@@ -766,6 +837,7 @@
       if (track) track.addEventListener('ended', function () { closeShare(); });
 
       ZS.closeModal('shareModal');
+      shareToRoom('screen', 'Screen share', stream);
       showNote(hasAudio ? 'Sharing your screen with sound' : 'Sharing your screen — tick “Share audio” for sound', 5200);
     }).catch(function (err) {
       if (err && err.name === 'NotAllowedError') ZS.toast('Screen share was cancelled.');
@@ -777,6 +849,9 @@
     var overlay = $('shareDiscuss');
     overlay.classList.toggle('hidden');
     if (share.mode === 'media') syncShareButton();
+    if (share.published && window.ZSN) {
+      window.ZSN.announcePause(!overlay.classList.contains('hidden'));
+    }
   }
 
   function toggleSharePlayback() {
@@ -797,6 +872,9 @@
       $('shareDiscuss').classList.remove('hidden');
       $('shareAlbumArt').classList.remove('playing');
     }
+    if (share.published && window.ZSN) {
+      window.ZSN.announcePause(!$('shareDiscuss').classList.contains('hidden'));
+    }
     syncShareButton();
   }
 
@@ -806,6 +884,11 @@
   }
 
   function closeShare(silent) {
+    if (share.published && window.ZSN) {
+      window.ZSN.removeShareStream();
+      window.ZSN.announceStop();
+    }
+    share.published = false;
     if (share.screen) {
       stopStream(share.screen);
       share.screen = null;
@@ -824,7 +907,196 @@
     $('shareQueueList').innerHTML = '';
     $('shareTitle').textContent = 'Nothing shared';
     $('shareSub').textContent = 'Local studio';
+    $('sharePlayBtn').classList.remove('hidden');
+    $('closeShareBtn').innerHTML = zIcon('x') + ' Close';
     if (!silent) showNote('Share closed — back to the studio', 3000);
+  }
+
+  /* ---------- sharing to the room ---------- */
+  function shareToRoom(kind, title, stream) {
+    if (!window.ZSN) return;
+    window.ZSN.removeShareStream();
+    if (stream && stream.getTracks().length) window.ZSN.addShareStream(stream);
+    window.ZSN.announceShare({
+      kind: kind,
+      title: title || '',
+      hasVideo: !!(stream && stream.getVideoTracks().length),
+      hasAudio: !!(stream && stream.getAudioTracks().length)
+    });
+    share.published = true;
+  }
+
+  function publishElementShare(el, kind, title) {
+    if (!window.ZSN || !el) return;
+    var done = false;
+
+    function publish() {
+      if (done) return;
+      var stream = el.captureStream ? el.captureStream() : null;
+      if (!stream || !stream.getTracks().length) return;
+      done = true;
+      el.removeEventListener('loadedmetadata', publish);
+      el.removeEventListener('playing', publish);
+      shareToRoom(kind, title, stream);
+    }
+
+    if (el.readyState >= 1) publish();
+    if (!done) {
+      el.addEventListener('loadedmetadata', publish);
+      el.addEventListener('playing', publish);
+    }
+    setTimeout(publish, 900);
+  }
+
+  function sendDocToRoom(item) {
+    if (!window.ZSN || !item.file) return;
+    if (item.file.size > 8 * 1024 * 1024) {
+      ZS.toast('Documents over 8 MB stay on this device — others get the title only.', 'error');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () {
+      window.ZSN.sendDoc({
+        name: item.name,
+        mime: item.file.type || 'application/octet-stream',
+        data: String(reader.result)
+      });
+    };
+    reader.readAsDataURL(item.file);
+  }
+
+  function showRemoteShare(peer) {
+    if (share.published) return;
+    if (share.mode === 'remote' && share.remote === peer.id) {
+      $('shareTitle').textContent = peer.shareTitle || 'Shared media';
+      attachRemoteShare(peer);
+      return;
+    }
+    if (share.mode !== 'none') closeShare(true);
+    closeRemoteShare(true);
+
+    share.mode = 'remote';
+    share.remote = peer.id;
+    resetShareCanvas();
+    $('shareStage').classList.remove('hidden');
+    $('videoGrid').classList.add('hidden');
+    $('sharePrev').classList.add('hidden');
+    $('shareNext').classList.add('hidden');
+    $('shareQueue').classList.add('hidden');
+    $('shareProgressWrap').classList.add('hidden');
+    $('sharePlayBtn').classList.add('hidden');
+    $('shareKind').textContent = peer.shareKind === 'audio' ? 'Audio'
+      : peer.shareKind === 'video' ? 'Video'
+        : peer.shareKind === 'screen' ? 'Screen' : 'Document';
+    $('shareTitle').textContent = peer.shareTitle || 'Shared media';
+    $('shareSub').textContent = 'Shared by ' + (peer.name || 'a guest') + ' · live in this room';
+    $('closeShareBtn').innerHTML = zIcon('x') + ' Hide';
+    applyShareVolume();
+    attachRemoteShare(peer);
+    if (window.zHydrateIcons) window.zHydrateIcons();
+  }
+
+  function attachRemoteShare(peer) {
+    if (!peer || !peer.shareStream) return;
+    var hasVideo = peer.shareStream.getVideoTracks().length > 0;
+    if (hasVideo) {
+      var video = $('shareVideo');
+      if (video.srcObject !== peer.shareStream) video.srcObject = peer.shareStream;
+      video.classList.remove('hidden');
+      video.muted = share.muted;
+      video.volume = share.volume;
+      video.play().catch(function () { /* muted autoplay fallback */ });
+      $('shareAudioVisual').classList.add('hidden');
+    } else {
+      var audio = $('shareAudio');
+      if (audio.srcObject !== peer.shareStream) audio.srcObject = peer.shareStream;
+      audio.muted = share.muted;
+      audio.volume = share.volume;
+      audio.play().catch(function () { /* user gesture needed */ });
+      $('shareAudioVisual').classList.remove('hidden');
+      $('shareAlbumArt').classList.add('playing');
+      $('shareTrack').textContent = peer.shareTitle || 'Shared audio';
+    }
+  }
+
+  function closeRemoteShare(silent) {
+    if (share.mode !== 'remote') return;
+    resetShareCanvas();
+    share.mode = 'none';
+    share.remote = null;
+    $('shareStage').classList.add('hidden');
+    $('videoGrid').classList.remove('hidden');
+    $('sharePlayBtn').classList.remove('hidden');
+    $('closeShareBtn').innerHTML = zIcon('x') + ' Close';
+    if (!silent) showNote('Stopped viewing shared media', 2600);
+  }
+
+  function decodeDataUrl(dataUrl) {
+    try {
+      var base64 = String(dataUrl).split(',')[1] || '';
+      return decodeURIComponent(escape(atob(base64))).slice(0, 60000);
+    } catch (error) {
+      return 'This document could not be previewed.';
+    }
+  }
+
+  function showRemoteDoc(message) {
+    if (share.published) return;
+    var peers = window.ZSN ? window.ZSN.list() : [];
+    var sharer = peers.filter(function (p) { return p.id === message.from; })[0];
+    showRemoteShare({
+      id: message.from,
+      name: sharer ? sharer.name : 'A guest',
+      shareKind: 'document',
+      shareTitle: message.name,
+      shareStream: null
+    });
+    if (/^image\//.test(message.mime)) {
+      $('shareImage').src = message.data;
+      $('shareImage').classList.remove('hidden');
+    } else if (/pdf/.test(message.mime)) {
+      $('shareDoc').src = message.data;
+      $('shareDoc').classList.remove('hidden');
+    } else {
+      $('shareText').textContent = decodeDataUrl(message.data);
+      $('shareText').classList.remove('hidden');
+    }
+    if (window.zHydrateIcons) window.zHydrateIcons();
+  }
+
+  function updateParticipants() {
+    var peers = window.ZSN ? window.ZSN.list() : [];
+    $('participantsCount').textContent = String(1 + peers.length);
+    $('participantsChip').classList.remove('hidden');
+  }
+
+  function wireNetwork() {
+    if (!window.ZSN) return;
+    window.ZSN.on('peers', function () {
+      renderGrid();
+      renderPeople();
+      updateParticipants();
+    });
+    window.ZSN.on('peer-media', function () { renderGrid(); });
+    window.ZSN.on('share-start', function (peer) {
+      if (!share.published) showRemoteShare(peer);
+    });
+    window.ZSN.on('share-media', function (peer) {
+      if (share.published) return;
+      if (share.mode !== 'remote' || share.remote !== peer.id) showRemoteShare(peer);
+      else attachRemoteShare(peer);
+    });
+    window.ZSN.on('share-stop', function () { closeRemoteShare(); });
+    window.ZSN.on('share-pause', function (message) {
+      if (share.mode !== 'remote' || share.remote !== message.from) return;
+      $('shareDiscuss').classList.toggle('hidden', !message.paused);
+      $('shareAlbumArt').classList.toggle('playing', !message.paused);
+    });
+    window.ZSN.on('doc', function (message) { showRemoteDoc(message); });
+    window.ZSN.on('status', function (state) {
+      if (state.state === 'joined') showNote('Connected to the studio room', 2600);
+      renderPeople();
+    });
   }
 
   /* ---------- join / leave ---------- */
@@ -860,8 +1132,15 @@
     joined = true;
     $('lobby').classList.add('hidden');
     $('participantsChip').classList.remove('hidden');
+
+    if (window.ZSN && !netStarted) {
+      netStarted = true;
+      window.ZSN.start({ room: roomKey(), name: name || selfName(), role: role, stream: localStream });
+    }
+
     renderGrid();
     renderPeople();
+    updateParticipants();
     if (!localStream) startPreview(audioOnly);
     showNote(audioOnly ? 'Joined with audio only — camera off' : 'You are live in the studio', 3600);
     if (window.zHydrateIcons) window.zHydrateIcons();
@@ -880,6 +1159,7 @@
       if (recorder && recorder.state === 'recording') stopRecording();
       stopMeter();
       closeShare(true);
+      if (window.ZSN) window.ZSN.stop();
       stopStream(localStream);
       location.href = session ? 'library.html?view=recordings' : 'index.html';
     });
@@ -896,6 +1176,7 @@
       localStream.getAudioTracks().forEach(function (t) { t.enabled = micOn; });
       updateSelfChrome();
       renderPeople();
+      if (window.ZSN && netStarted) window.ZSN.setMediaState({ mic: micOn, cam: camOn });
     });
 
     $('camBtn').addEventListener('click', function () {
@@ -904,6 +1185,7 @@
       localStream.getVideoTracks().forEach(function (t) { t.enabled = camOn; });
       updateSelfChrome();
       renderPeople();
+      if (window.ZSN && netStarted) window.ZSN.setMediaState({ mic: micOn, cam: camOn });
     });
 
     $('shareBtn').addEventListener('click', function () {
@@ -1053,6 +1335,7 @@
     window.addEventListener('pagehide', function () {
       stopMeter();
       closeShare(true);
+      if (window.ZSN) window.ZSN.stop();
       stopStream(localStream);
     });
 
@@ -1068,6 +1351,7 @@
     resolveContext();
     fillContext();
     wire();
+    wireNetwork();
     renderGrid();
     startPreview(false);
     var st = ZS.state().settings;

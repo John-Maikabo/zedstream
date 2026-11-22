@@ -850,10 +850,182 @@ app.post('/api/rooms/:roomId/exam/end', requireStaff('invigilation'), asyncRoute
     res.json({ success: true, exam: examPayloadFor(room, 'proctor') });
 }));
 
+// ==================== ZEDSTREAM STUDIO SIGNALING ====================
+// A small, self-contained room service for the ZedStream podcast studio.
+// It shares the HTTP server with the proctoring signalling but never touches
+// proctoring rooms, accounts or exam data.
+
+const zedRooms = new Map(); // roomId -> Map(peerId -> peer)
+let zedPeerSeq = 0;
+
+function zedPeerId() {
+    zedPeerSeq += 1;
+    return 'zd' + zedPeerSeq.toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function zedPublicPeer(peer) {
+    return {
+        id: peer.id,
+        name: peer.name,
+        role: peer.role,
+        mic: peer.mic,
+        cam: peer.cam,
+        sharing: peer.sharing,
+        shareKind: peer.shareKind,
+        shareTitle: peer.shareTitle
+    };
+}
+
+function zedBroadcast(roomId, exceptId, message) {
+    const peers = zedRooms.get(roomId);
+    if (!peers) return;
+    const raw = JSON.stringify(message);
+    peers.forEach((peer, id) => {
+        if (id === exceptId) return;
+        if (peer.ws.readyState === WebSocket.OPEN) {
+            try { peer.ws.send(raw); } catch (error) { /* the close handler cleans up */ }
+        }
+    });
+}
+
+function handleZedConnection(ws, url) {
+    const roomId = String(url.searchParams.get('room') || '').slice(0, 80);
+    const name = String(url.searchParams.get('name') || 'Guest').slice(0, 60) || 'Guest';
+    const role = url.searchParams.get('role') === 'host' ? 'host' : 'guest';
+
+    if (!roomId) {
+        ws.close(1008, 'A studio room is required');
+        return;
+    }
+
+    let peers = zedRooms.get(roomId);
+    if (!peers) {
+        peers = new Map();
+        zedRooms.set(roomId, peers);
+    }
+    if (peers.size >= 8) {
+        ws.close(1008, 'This studio is full');
+        return;
+    }
+
+    const peer = {
+        id: zedPeerId(),
+        ws,
+        name,
+        role,
+        mic: true,
+        cam: true,
+        sharing: false,
+        shareKind: '',
+        shareTitle: '',
+        joinedAt: Date.now()
+    };
+
+    const existing = Array.from(peers.values()).map(zedPublicPeer);
+    peers.set(peer.id, peer);
+
+    ws.send(JSON.stringify({
+        type: 'joined',
+        selfId: peer.id,
+        room: roomId,
+        role,
+        peers: existing
+    }));
+    zedBroadcast(roomId, peer.id, { type: 'peer-join', peer: zedPublicPeer(peer) });
+
+    console.log(`[ZedStream] ${name} joined studio ${roomId} (${peers.size} in room)`);
+
+    ws.on('message', (raw) => {
+        let data;
+        try { data = JSON.parse(raw); } catch (error) { return; }
+        if (!data || typeof data.type !== 'string') return;
+
+        if (data.type === 'signal') {
+            const target = peers.get(String(data.to || ''));
+            if (target && target.ws.readyState === WebSocket.OPEN) {
+                target.ws.send(JSON.stringify({ type: 'signal', from: peer.id, data: data.data }));
+            }
+            return;
+        }
+
+        if (data.type === 'state') {
+            peer.mic = data.mic !== false;
+            peer.cam = data.cam !== false;
+            zedBroadcast(roomId, peer.id, { type: 'peer-state', id: peer.id, mic: peer.mic, cam: peer.cam });
+            return;
+        }
+
+        if (data.type === 'share-start') {
+            peer.sharing = true;
+            peer.shareKind = String(data.kind || '').slice(0, 20);
+            peer.shareTitle = String(data.title || '').slice(0, 140);
+            zedBroadcast(roomId, peer.id, {
+                type: 'share-start',
+                from: peer.id,
+                kind: peer.shareKind,
+                title: peer.shareTitle,
+                hasVideo: !!data.hasVideo,
+                hasAudio: !!data.hasAudio
+            });
+            return;
+        }
+
+        if (data.type === 'share-stop') {
+            peer.sharing = false;
+            peer.shareKind = '';
+            peer.shareTitle = '';
+            zedBroadcast(roomId, peer.id, { type: 'share-stop', from: peer.id });
+            return;
+        }
+
+        if (data.type === 'share-pause') {
+            zedBroadcast(roomId, peer.id, { type: 'share-pause', from: peer.id, paused: !!data.paused });
+            return;
+        }
+
+        if (data.type === 'doc') {
+            // Documents travel as a small data URL so guests can preview them
+            const payload = String(data.data || '');
+            if (!payload || payload.length > 12 * 1024 * 1024) return;
+            zedBroadcast(roomId, peer.id, {
+                type: 'doc',
+                from: peer.id,
+                name: String(data.name || 'Document').slice(0, 160),
+                mime: String(data.mime || '').slice(0, 80),
+                data: payload
+            });
+        }
+    });
+
+    ws.on('close', () => {
+        const current = zedRooms.get(roomId);
+        if (!current || current.get(peer.id) !== peer) return;
+        current.delete(peer.id);
+        if (!current.size) zedRooms.delete(roomId);
+        zedBroadcast(roomId, peer.id, { type: 'peer-leave', id: peer.id, name: peer.name });
+        console.log(`[ZedStream] ${name} left studio ${roomId} (${current.size} in room)`);
+    });
+
+    ws.on('error', (error) => {
+        console.error('[ZedStream] socket error:', error.message);
+    });
+}
+
 // ==================== WEBSOCKET SIGNALING ====================
 
 // WebSocket connection handling
 wss.on('connection', async (ws, req) => {
+    // The podcast studio uses its own path on the same socket server
+    try {
+        const studioUrl = new URL(req.url, `http://${req.headers.host}`);
+        if (studioUrl.pathname === '/zed/ws') {
+            handleZedConnection(ws, studioUrl);
+            return;
+        }
+    } catch (error) {
+        console.error('Could not read WebSocket URL:', error.message);
+    }
+
     console.log('=== New WebSocket Connection ===');
     
     // Parse URL parameters

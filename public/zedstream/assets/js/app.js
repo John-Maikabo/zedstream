@@ -196,7 +196,9 @@
 
   function inviteUrl(session, guest) {
     return baseUrl() + 'studio.html?invite=' + encodeURIComponent(guest.token) +
-      '&s=' + encodeURIComponent(session.id) + '&g=' + encodeURIComponent(guest.id);
+      '&s=' + encodeURIComponent(session.id) + '&g=' + encodeURIComponent(guest.id) +
+      '&title=' + encodeURIComponent(session.episodeTitle || '') +
+      '&host=' + encodeURIComponent(session.host || '');
   }
 
   function inviteMessage(session, guest) {
