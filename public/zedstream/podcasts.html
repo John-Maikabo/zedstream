@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Podcasts · ZedStream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/zedstream.css">
+</head>
+<body data-page="podcasts">
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="ZedStream navigation"></aside>
+    <div class="shell">
+      <header class="topbar" id="topbar"></header>
+
+      <main class="page">
+        <div class="page-head">
+          <div>
+            <p class="page-eyebrow">Your shows</p>
+            <h1 class="page-title">My Podcasts</h1>
+            <p class="page-sub">Each show groups its own episodes and recording sessions.</p>
+          </div>
+          <button class="btn btn-primary" type="button" id="newPodcastBtn"><i data-i="plus"></i> New podcast</button>
+        </div>
+
+        <div class="episode-grid stagger" id="podcastGrid"></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="overlay" id="podcastModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="podcastModalTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="podcastModalTitle">New podcast</h2>
+          <p>Set the show up once, then schedule episodes into it.</p>
+        </div>
+        <button class="icon-btn" type="button" data-close="podcastModal" aria-label="Close"><i data-i="x"></i></button>
+      </div>
+      <form id="podcastForm">
+        <div class="modal-body">
+          <div class="field">
+            <label for="podcastName">Podcast name <span class="req">*</span></label>
+            <input class="input" id="podcastName" maxlength="70" required placeholder="e.g. The Signal Room">
+            <span class="field-error">Give your podcast a name.</span>
+          </div>
+          <div class="field">
+            <label for="podcastAbout">Description</label>
+            <textarea class="textarea" id="podcastAbout" rows="3" maxlength="240" placeholder="What is this show about?"></textarea>
+          </div>
+          <div class="field">
+            <label for="podcastHost">Host</label>
+            <input class="input" id="podcastHost" maxlength="70" placeholder="Your name on air">
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" type="button" data-close="podcastModal">Cancel</button>
+          <button class="btn btn-primary" type="submit" id="podcastSubmit"><i data-i="check"></i> Create podcast</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/podcasts.js"></script>
+</body>
+</html>

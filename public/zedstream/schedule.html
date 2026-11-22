@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedule · ZedStream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/zedstream.css">
+</head>
+<body data-page="schedule">
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="ZedStream navigation"></aside>
+    <div class="shell">
+      <header class="topbar" id="topbar"></header>
+
+      <main class="page">
+        <div class="page-head">
+          <div>
+            <p class="page-eyebrow">Plan an episode</p>
+            <h1 class="page-title" id="scheduleTitle">Schedule a recording</h1>
+            <p class="page-sub">Set the session up once — then share the joining link with every guest. Scheduling, invitations and guest links all stay in one flow.</p>
+          </div>
+          <a class="btn btn-ghost" href="index.html"><i data-i="arrowLeft"></i> Back to dashboard</a>
+        </div>
+
+        <div class="schedule-layout">
+          <form class="card form-card" id="scheduleForm" novalidate>
+            <!-- 1. podcast information -->
+            <section class="form-section">
+              <div class="form-section-head">
+                <span class="step-num">01</span>
+                <div>
+                  <h2>Podcast information</h2>
+                  <p>Which show is this episode for?</p>
+                </div>
+              </div>
+              <div class="form-grid two">
+                <div class="field">
+                  <label for="podcastSelect"><i data-i="disc"></i> Podcast <span class="req">*</span></label>
+                  <select class="select" id="podcastSelect" required></select>
+                  <span class="field-error">Choose the podcast this episode belongs to.</span>
+                  <p class="hint">No show yet? <a class="link-btn" href="podcasts.html">Create a podcast</a></p>
+                </div>
+                <div class="field">
+                  <label for="hostName"><i data-i="mic"></i> Host</label>
+                  <input class="input" id="hostName" maxlength="70" placeholder="Who is hosting?">
+                </div>
+              </div>
+            </section>
+
+            <!-- 2. episode details -->
+            <section class="form-section">
+              <div class="form-section-head">
+                <span class="step-num">02</span>
+                <div>
+                  <h2>Episode details</h2>
+                  <p>Give the conversation a name and a brief for your guests.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="episodeTitle"><i data-i="file"></i> Episode title <span class="req">*</span></label>
+                  <input class="input" id="episodeTitle" maxlength="100" placeholder="e.g. Building a studio from scratch" required>
+                  <span class="field-error">An episode title is required.</span>
+                </div>
+                <div class="field">
+                  <label for="episodeSummary"><i data-i="message"></i> Episode summary</label>
+                  <textarea class="textarea" id="episodeSummary" rows="3" maxlength="400" placeholder="What will you cover? Guests see this with their invitation."></textarea>
+                </div>
+              </div>
+            </section>
+
+            <!-- 3. date & time -->
+            <section class="form-section">
+              <div class="form-section-head">
+                <span class="step-num">03</span>
+                <div>
+                  <h2>Date and time</h2>
+                  <p>Recording start time, in your local timezone.</p>
+                </div>
+              </div>
+              <div class="form-grid three">
+                <div class="field">
+                  <label for="sessionDate"><i data-i="calendar"></i> Date <span class="req">*</span></label>
+                  <input class="input" id="sessionDate" type="date" required>
+                  <span class="field-error">Pick a recording date.</span>
+                </div>
+                <div class="field">
+                  <label for="sessionTime"><i data-i="clock"></i> Start time <span class="req">*</span></label>
+                  <input class="input" id="sessionTime" type="time" step="300" required>
+                  <span class="field-error">Pick a start time.</span>
+                </div>
+                <div class="field">
+                  <label for="sessionDuration"><i data-i="headphones"></i> Expected length</label>
+                  <select class="select" id="sessionDuration">
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="45">45 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">1 hr 30 min</option>
+                    <option value="120">2 hours</option>
+                  </select>
+                </div>
+              </div>
+              <p class="hint" style="margin-top:10px"><i data-i="globe"></i> Timezone: <span id="timezoneLabel">—</span></p>
+            </section>
+
+            <!-- 4. participants and guests -->
+            <section class="form-section">
+              <div class="form-section-head">
+                <span class="step-num">04</span>
+                <div>
+                  <h2>Participants and guests</h2>
+                  <p>Every guest gets their own joining link.</p>
+                </div>
+              </div>
+              <div class="guest-list" id="guestList"></div>
+              <button class="btn btn-ghost btn-sm" type="button" id="addGuestBtn" style="margin-top:11px">
+                <i data-i="userPlus"></i> Add another guest
+              </button>
+              <p class="hint" style="margin-top:10px"><i data-i="shield"></i> Links are unique per guest and can be copied or sent from the summary panel.</p>
+            </section>
+
+            <!-- 5. recording preferences -->
+            <section class="form-section">
+              <div class="form-section-head">
+                <span class="step-num">05</span>
+                <div>
+                  <h2>Recording preferences</h2>
+                  <p>Applied when you open the studio for this session.</p>
+                </div>
+              </div>
+              <div class="form-grid three">
+                <div class="field">
+                  <label for="recordQuality"><i data-i="video"></i> Video quality</label>
+                  <select class="select" id="recordQuality">
+                    <option value="720">720p · lighter</option>
+                    <option value="1080">1080p · balanced</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="recordBackground"><i data-i="image"></i> Camera background</label>
+                  <select class="select" id="recordBackground">
+                    <option value="none">None</option>
+                    <option value="blur">Blur</option>
+                    <option value="gradient-violet">Soft violet</option>
+                    <option value="gradient-studio">Dark studio</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="recordFormat"><i data-i="file"></i> Capture</label>
+                  <select class="select" id="recordFormat">
+                    <option value="video">Video + audio</option>
+                    <option value="audio">Audio only</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <!-- 6. invitation options -->
+            <section class="form-section">
+              <div class="form-section-head">
+                <span class="step-num">06</span>
+                <div>
+                  <h2>Invitation options</h2>
+                  <p>Personalise the message guests receive with their link.</p>
+                </div>
+              </div>
+              <div class="field">
+                <label for="inviteMessage"><i data-i="mail"></i> Invitation message</label>
+                <textarea class="textarea" id="inviteMessage" rows="4"></textarea>
+                <p class="hint"><code>{{name}}</code> becomes the guest's name, <code>{{link}}</code> becomes their joining link.</p>
+              </div>
+              <label class="check-row" style="margin-top:14px">
+                <input type="checkbox" id="sendNow" checked>
+                <span>Show invitation controls for every guest after saving</span>
+              </label>
+            </section>
+
+            <div class="modal-foot" style="padding:18px 24px;border-top:1px solid var(--border)">
+              <button class="btn btn-ghost" type="button" id="resetFormBtn">Clear form</button>
+              <span class="spacer"></span>
+              <button class="btn btn-primary btn-lg" type="submit" id="saveSessionBtn">
+                <i data-i="calendarPlus"></i> <span id="saveSessionLabel">Schedule session</span>
+              </button>
+            </div>
+          </form>
+
+          <aside class="stack">
+            <section class="card summary-card">
+              <div class="summary-cover">
+                <div class="wave-art" aria-hidden="true" style="height:56px">
+                  <span style="height:30%"></span><span style="height:64%"></span><span style="height:44%"></span>
+                  <span style="height:88%"></span><span style="height:52%"></span><span style="height:100%"></span>
+                  <span style="height:40%"></span><span style="height:70%"></span>
+                </div>
+              </div>
+              <div class="summary-body">
+                <div>
+                  <span class="badge badge-violet" id="summaryStatus">Draft session</span>
+                  <h2 style="font-size:16px;margin-top:9px" id="summaryTitle">Untitled episode</h2>
+                  <p class="small muted" id="summaryPodcast" style="margin-top:3px">No podcast selected</p>
+                </div>
+                <div class="summary-divider"></div>
+                <div class="summary-line"><span><i data-i="calendar"></i> Date</span><strong id="summaryDate">Not set</strong></div>
+                <div class="summary-line"><span><i data-i="clock"></i> Time</span><strong id="summaryTime">Not set</strong></div>
+                <div class="summary-line"><span><i data-i="headphones"></i> Length</span><strong id="summaryDuration">45 min</strong></div>
+                <div class="summary-line"><span><i data-i="users"></i> Guests</span><strong id="summaryGuests">0</strong></div>
+                <div class="summary-divider"></div>
+                <p class="hint"><i data-i="shield"></i> Guest links are generated per guest and work in the studio joining room.</p>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="panel-head">
+                <h2><i data-i="calendar"></i> Recently scheduled</h2>
+              </div>
+              <div class="panel-body" id="recentScheduled"></div>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Invitations after saving -->
+  <div class="overlay" id="inviteModal">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="inviteModalTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="inviteModalTitle">Session scheduled</h2>
+          <p id="inviteModalSub">Share these joining links with your guests.</p>
+        </div>
+        <button class="icon-btn" type="button" data-close="inviteModal" aria-label="Close"><i data-i="x"></i></button>
+      </div>
+      <div class="modal-body" id="inviteModalBody"></div>
+      <div class="modal-foot">
+        <a class="btn btn-ghost" href="index.html"><i data-i="grid"></i> Dashboard</a>
+        <span class="spacer"></span>
+        <a class="btn btn-primary" href="studio.html" id="inviteStudioLink"><i data-i="radio"></i> Open studio</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/schedule.js"></script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recording Studio · ZedStream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/zedstream.css">
+</head>
+<body class="studio-body" data-page="studio">
+  <div class="studio">
+    <header class="studio-top">
+      <a class="icon-btn" href="index.html" title="Leave studio" aria-label="Back to dashboard"><i data-i="arrowLeft"></i></a>
+      <div class="studio-brand">
+        <span class="brand-mark"><i data-i="wave"></i></span>
+      </div>
+      <div class="studio-title">
+        <h1 id="studioTitle">Recording studio</h1>
+        <p><span class="live-dot" style="background:var(--violet-bright);box-shadow:none;animation:none"></span>
+          <span id="studioSub">Your studio room</span></p>
+      </div>
+
+      <span class="rec-chip idle" id="recChip" aria-live="polite">
+        <span class="live-dot"></span><span id="recTime">Not recording</span>
+      </span>
+      <span class="badge hidden" id="participantsChip"><i data-i="users"></i> <span id="participantsCount">1</span></span>
+
+      <div class="studio-top-right">
+        <button class="icon-btn" type="button" id="peopleToggle" title="People panel" aria-label="People panel"><i data-i="users"></i></button>
+        <button class="icon-btn" type="button" id="inviteTopBtn" title="Invite guests" aria-label="Invite guests"><i data-i="userPlus"></i></button>
+        <button class="btn btn-sm btn-primary" type="button" id="inviteCta"><i data-i="link"></i> Invite</button>
+      </div>
+    </header>
+
+    <div class="studio-main">
+      <section class="stage">
+        <div class="presentation-stage hidden" id="presentationStage" style="flex:1;display:flex;flex-direction:column;gap:10px;min-height:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--border)">
+            <span class="small" style="display:flex;align-items:center;gap:8px"><i data-i="monitor"></i> <span id="shareLabel">You are sharing your screen</span></span>
+            <button class="btn btn-sm btn-danger" type="button" id="stopShareBtn"><i data-i="x"></i> Stop sharing</button>
+          </div>
+          <div style="flex:1;min-height:0;border-radius:16px;overflow:hidden;border:1px solid var(--border);background:#05050a;display:grid;place-items:center">
+            <video id="screenVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain"></video>
+          </div>
+        </div>
+
+        <div class="video-grid" id="videoGrid"></div>
+
+        <div class="studio-note hidden" id="studioNote"></div>
+      </section>
+
+      <aside class="people-panel" id="peoplePanel" aria-label="People and studio settings">
+        <div class="people-head">
+          <h2>People</h2>
+          <button class="icon-btn" type="button" id="peopleClose" aria-label="Close panel" style="width:30px;height:30px"><i data-i="x"></i></button>
+        </div>
+        <div class="people-body">
+          <div class="people-block">
+            <span class="label">Episode</span>
+            <div class="people-meta">
+              <strong id="panelEpisode" style="font-size:13px;display:block">Recording studio</strong>
+              <small id="panelMeta">Not scheduled</small>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <span class="badge" id="panelGuests">0 guests</span>
+              <button class="link-btn" type="button" id="panelInviteBtn"><i data-i="link"></i> Copy invite</button>
+            </div>
+          </div>
+
+          <div class="people-block">
+            <span class="label">In the studio</span>
+            <div id="peopleList"></div>
+          </div>
+
+          <div class="people-block">
+            <span class="label">Studio controls</span>
+            <div class="switch-row"><span>Mirror my camera</span>
+              <label class="switch"><input type="checkbox" id="mirrorToggle" checked><span></span></label>
+            </div>
+            <div class="switch-row"><span>Blur my background</span>
+              <label class="switch"><input type="checkbox" id="blurToggle"><span></span></label>
+            </div>
+            <div class="switch-row"><span>Noise suppression</span>
+              <label class="switch"><input type="checkbox" id="noiseToggle" checked><span></span></label>
+            </div>
+          </div>
+
+          <div class="people-block">
+            <span class="label">Connection</span>
+            <div class="people-meta" style="display:flex;align-items:center;gap:8px">
+              <i data-i="signal" data-cls="sm" style="color:var(--green)"></i>
+              <span>Camera and microphone on this device</span>
+            </div>
+            <p class="hint">Guests join from their own joining link. Camera, microphone and recording are captured locally in this browser.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="studio-bar-wrap">
+      <div class="studio-bar" role="toolbar" aria-label="Studio controls">
+        <button class="ctl" type="button" id="micBtn" title="Mute microphone">
+          <span class="ctl-icon"><i data-i="mic"></i></span><span id="micLabel">Mic</span>
+        </button>
+        <button class="ctl" type="button" id="camBtn" title="Turn camera off">
+          <span class="ctl-icon"><i data-i="video"></i></span><span id="camLabel">Cam</span>
+        </button>
+        <button class="ctl" type="button" id="shareBtn" title="Share your screen">
+          <span class="ctl-icon"><i data-i="monitor"></i></span><span>Share</span>
+        </button>
+        <div class="bar-sep"></div>
+        <button class="ctl" type="button" id="inviteBtn" title="Invite guests">
+          <span class="ctl-icon"><i data-i="userPlus"></i></span><span>Invite</span>
+        </button>
+        <button class="ctl rec" type="button" id="recordBtn" title="Start recording">
+          <span class="ctl-icon"><i data-i="circle"></i></span><span id="recordLabel">Record</span>
+        </button>
+        <button class="ctl" type="button" id="settingsBtn" title="Studio settings">
+          <span class="ctl-icon"><i data-i="settings"></i></span><span>Settings</span>
+        </button>
+        <div class="bar-sep"></div>
+        <button class="ctl leave" type="button" id="leaveBtn" title="Leave studio">
+          <span class="ctl-icon"><i data-i="phoneOff"></i></span><span>Leave</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-join lobby -->
+  <div class="lobby" id="lobby">
+    <div class="lobby-card">
+      <div class="lobby-preview">
+        <video id="previewVideo" autoplay playsinline muted></video>
+        <div class="tile-empty" id="previewEmpty">
+          <span class="avatar" id="previewInitials">ZS</span>
+          <strong id="previewName">Your camera</strong>
+          <span id="previewHint">Enable your camera to check how you look before joining.</span>
+        </div>
+      </div>
+      <div class="lobby-side">
+        <span class="hero-tag" style="margin:0"><i data-i="radio"></i> ZedStream studio</span>
+        <h1 id="lobbyTitle">Ready to record?</h1>
+        <p id="lobbySub">Check your camera and microphone, then join the studio.</p>
+
+        <div class="lobby-checks">
+          <div class="lobby-check"><span><i data-i="video" data-cls="sm"></i> Camera</span>
+            <span class="status" id="camStatus"><span class="status-off">Not started</span></span>
+          </div>
+          <div class="lobby-check"><span><i data-i="mic" data-cls="sm"></i> Microphone</span>
+            <span class="status" id="micStatus"><span class="status-off">Not started</span></span>
+          </div>
+          <div class="lobby-check"><span><i data-i="message" data-cls="sm"></i> Speaking test</span>
+            <span class="status small muted" id="levelStatus">Waiting</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="lobbyName"><i data-i="userPlus"></i> Your display name</label>
+          <input class="input" id="lobbyName" maxlength="60" placeholder="How should we call you?">
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <button class="btn btn-primary btn-lg btn-block" type="button" id="joinStudioBtn">
+            <i data-i="radio"></i> Join studio
+          </button>
+          <button class="btn btn-ghost btn-block" type="button" id="joinAudioBtn">
+            <i data-i="headphones"></i> Join with audio only
+          </button>
+        </div>
+        <p class="hint"><i data-i="shield"></i> Nothing is uploaded. Your camera, microphone and recordings stay on this device until you publish or download them.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="overlay" id="studioSettings">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="studioSettingsTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="studioSettingsTitle">Studio settings</h2>
+          <p>Applies to this studio room.</p>
+        </div>
+        <button class="icon-btn" type="button" data-close="studioSettings" aria-label="Close"><i data-i="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="settingBackground"><i data-i="image"></i> Camera background</label>
+          <select class="select" id="settingBackground">
+            <option value="none">None</option>
+            <option value="blur">Blur</option>
+            <option value="soft">Soft violet wash</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="settingQuality"><i data-i="video"></i> Recording quality</label>
+          <select class="select" id="settingQuality">
+            <option value="720">720p · lighter file</option>
+            <option value="1080">1080p · balanced</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="settingEpisode"><i data-i="file"></i> Episode name for the recording</label>
+          <input class="input" id="settingEpisode" maxlength="100" placeholder="Untitled episode">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-primary" type="button" data-close="studioSettings">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save recording -->
+  <div class="overlay" id="saveRecording">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saveRecordingTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="saveRecordingTitle">Recording ready</h2>
+          <p id="saveRecordingSub">Save it to your episode library.</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:12px;align-items:center">
+          <span class="empty-orb" style="width:44px;height:44px;border-radius:13px;margin:0"><i data-i="video"></i></span>
+          <div><strong id="recDuration" style="font-size:15px">0:00</strong>
+            <p class="tiny muted" id="recSize">—</p></div>
+          <button class="btn btn-sm btn-ghost" type="button" id="downloadRecordingBtn" style="margin-left:auto"><i data-i="download"></i> Download</button>
+        </div>
+        <div class="field">
+          <label for="recTitle">Episode title <span class="req">*</span></label>
+          <input class="input" id="recTitle" maxlength="100">
+        </div>
+        <div class="field">
+          <label for="recPodcast">Podcast</label>
+          <select class="select" id="recPodcast"></select>
+        </div>
+        <label class="check-row"><input type="checkbox" id="recPublish"><span>Mark as published after saving</span></label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" id="discardRecordingBtn">Discard</button>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" type="button" id="saveRecordingBtn"><i data-i="check"></i> Save to library</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/studio.js"></script>
+</body>
+</html>

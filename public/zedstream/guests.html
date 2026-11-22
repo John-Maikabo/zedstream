@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guests · ZedStream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/zedstream.css">
+</head>
+<body data-page="guests">
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="ZedStream navigation"></aside>
+    <div class="shell">
+      <header class="topbar" id="topbar"></header>
+
+      <main class="page">
+        <div class="page-head">
+          <div>
+            <p class="page-eyebrow">Invitations</p>
+            <h1 class="page-title">Guests</h1>
+            <p class="page-sub">Every guest across your sessions, with their own joining link ready to copy or send.</p>
+          </div>
+          <a class="btn btn-primary" href="schedule.html"><i data-i="userPlus"></i> Invite a guest</a>
+        </div>
+
+        <div class="stat-grid" id="guestStats"></div>
+
+        <div class="library-toolbar" style="margin-top:26px">
+          <div class="search">
+            <i data-i="search"></i>
+            <input class="input" id="guestSearch" type="search" placeholder="Search guests or episodes…" aria-label="Search guests" autocomplete="off">
+          </div>
+          <div class="chips" id="guestFilters">
+            <button class="chip active" type="button" data-filter="all">All</button>
+            <button class="chip" type="button" data-filter="invited">Awaiting</button>
+            <button class="chip" type="button" data-filter="accepted">Joined</button>
+          </div>
+        </div>
+
+        <section class="card">
+          <div class="panel-head">
+            <h2><i data-i="users"></i> Guest list</h2>
+            <span class="badge" id="guestCount">0 guests</span>
+          </div>
+          <div class="panel-body" id="guestList"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/guests.js"></script>
+</body>
+</html>
