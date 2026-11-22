@@ -458,6 +458,33 @@
   }
 
   /* ---------- recording ---------- */
+  function recordingFileName(title) {
+    var now = new Date();
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    var base = String(title || prefs.episode || 'ZedStream recording')
+      .replace(/[^\w\-. ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80) || 'ZedStream recording';
+    return base + ' · ' + now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' +
+      pad(now.getDate()) + ' ' + pad(now.getHours()) + '-' + pad(now.getMinutes()) + '.webm';
+  }
+
+  // Writes the file to the machine's downloads, so a take is never only in
+  // browser storage.
+  function saveToDevice(blob, name) {
+    if (!blob || !blob.size) return;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 90000);
+  }
+
   function pickMime() {
     var candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'audio/webm'];
     if (!window.MediaRecorder) return '';
@@ -749,6 +776,8 @@
     $('recTitle').value = (prefs.episode && prefs.episode !== 'Ad-hoc recording session')
       ? prefs.episode
       : 'Recording · ' + new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    saveToDevice(blob, recordingFileName($('recTitle').value));
+    ZS.toast('Recording saved to your device', 'success');
     renderPodcastOptions();
     $('recordLabel').textContent = 'Record';
     $('recTime').textContent = 'Not recording';
@@ -765,15 +794,8 @@
 
   function downloadPending() {
     if (!pendingBlob) return;
-    var url = URL.createObjectURL(pendingBlob);
-    pendingBlob._url = url;
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = ($('recTitle').value.trim() || 'zedstream-recording').replace(/[^\w\-. ]+/g, '') + '.webm';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    ZS.toast('Download started', 'success');
+    saveToDevice(pendingBlob, recordingFileName($('recTitle').value));
+    ZS.toast('Saving a copy to your device', 'success');
   }
 
   function saveRecording() {
@@ -818,6 +840,11 @@
       return s;
     });
 
+    // Ask the browser to keep this origin's storage instead of treating it as
+    // disposable cache, so library playback survives restarts.
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(function () { /* best effort */ });
+    }
     ZS.rec.put(episodeId, pendingBlob).catch(function () {
       ZS.toast('Saved the episode, but the media file could not be stored locally.', 'error');
     });
