@@ -26,6 +26,13 @@
   var linkTitle = '';
   var netStarted = false;
   var prefs = { background: 'none', quality: '1080', episode: '' };
+  var recCanvas = null;
+  var recCtx = null;
+  var recTimer = 0;
+  var recTrack = null;
+  var recCanvasStream = null;
+  var recMixedStream = null;
+  var recAudioCtx = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -263,8 +270,9 @@
 
     peers.forEach(function (peer) {
       var peerVideo = $('peerVideo-' + peer.id);
-      if (peerVideo && peer.videoStream) {
-        if (peerVideo.srcObject !== peer.videoStream) peerVideo.srcObject = peer.videoStream;
+      var playable = peer.stream || peer.videoStream;
+      if (peerVideo && playable) {
+        if (peerVideo.srcObject !== playable) peerVideo.srcObject = playable;
         peerVideo.play().catch(function () { /* autoplay may need a gesture */ });
       }
     });
@@ -459,6 +467,215 @@
     return '';
   }
 
+  /* The recording is the studio view, not just one camera: the shared
+     screen, movie or document on the stage plus every participant, with a
+     mixed audio track carrying all microphones and the shared sound. */
+  function recordSize() {
+    var width = prefs.quality === '720' ? 1280 : 1920;
+    return { w: width, h: Math.round(width * 9 / 16) };
+  }
+
+  function recordingParticipants() {
+    var list = [];
+    var self = $('selfVideo');
+    if (self) list.push({ video: self, name: selfName() || 'You' });
+    (window.ZSN ? window.ZSN.list() : []).forEach(function (peer) {
+      var el = $('peerVideo-' + peer.id);
+      if (el) list.push({ video: el, name: peer.name || 'Guest' });
+    });
+    return list;
+  }
+
+  function shareVisualForRecording() {
+    if (share.mode === 'screen') {
+      var screen = $('shareVideo');
+      return screen && screen.readyState >= 2 ? { el: screen, type: 'video' } : null;
+    }
+    if (share.mode === 'media' && share.queue.length) {
+      var item = share.queue[share.index];
+      if (item && item.kind === 'video') {
+        var video = $('shareVideo');
+        return video && video.readyState >= 2 ? { el: video, type: 'video' } : null;
+      }
+      return null;
+    }
+    if (share.mode === 'document') {
+      var image = $('shareImage');
+      if (image && !image.classList.contains('hidden') && image.naturalWidth) {
+        return { el: image, type: 'image' };
+      }
+    }
+    return null;
+  }
+
+  function recordingShareAudio() {
+    var el = null;
+    if (share.mode === 'media') el = activeMediaEl();
+    else if (share.mode === 'screen') el = $('shareVideo');
+    if (!el || !el.captureStream) return null;
+    try {
+      var stream = el.captureStream();
+      return stream && stream.getAudioTracks().length ? stream : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function buildRecordingAudio() {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    var inputs = [];
+    if (localStream && micOn && localStream.getAudioTracks().length) inputs.push(localStream);
+    (window.ZSN ? window.ZSN.list() : []).forEach(function (peer) {
+      if (peer.audioTrack && peer.audioTrack.readyState === 'live') {
+        inputs.push(new MediaStream([peer.audioTrack]));
+      }
+    });
+    var shared = recordingShareAudio();
+    if (shared) inputs.push(shared);
+    if (!inputs.length) return null;
+
+    var ctx = new Ctx();
+    var destination = ctx.createMediaStreamDestination();
+    inputs.forEach(function (stream) {
+      try {
+        ctx.createMediaStreamSource(stream).connect(destination);
+      } catch (e) { /* one silent input must not kill the mix */ }
+    });
+    recAudioCtx = ctx;
+    return destination.stream;
+  }
+
+  function drawRecordingTile(ctx, video, x, y, w, h) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.fillStyle = '#141021';
+    ctx.fillRect(x, y, w, h);
+    if (video && video.readyState >= 2 && video.videoWidth) {
+      var scale = Math.max(w / video.videoWidth, h / video.videoHeight);
+      var dw = video.videoWidth * scale;
+      var dh = video.videoHeight * scale;
+      try { ctx.drawImage(video, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); } catch (e) { /* frame not ready */ }
+    }
+    ctx.restore();
+  }
+
+  function drawRecordingLabel(ctx, name, x, y) {
+    ctx.save();
+    ctx.font = '600 15px system-ui, sans-serif';
+    var text = String(name || '').slice(0, 28);
+    var width = ctx.measureText(text).width + 18;
+    ctx.fillStyle = 'rgba(10,7,17,.72)';
+    ctx.fillRect(x + 8, y + 8, width, 24);
+    ctx.fillStyle = '#f4f1ff';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + 17, y + 20);
+    ctx.restore();
+  }
+
+  function drawRecordingFrame() {
+    if (!recCtx || !recCanvas) return;
+    var ctx = recCtx;
+    var W = recCanvas.width;
+    var H = recCanvas.height;
+    ctx.fillStyle = '#0b0710';
+    ctx.fillRect(0, 0, W, H);
+
+    var visual = shareVisualForRecording();
+    var parts = recordingParticipants();
+
+    if (visual) {
+      var pad = 0; // no gutters: the shared screen and the room meet edge to edge
+      var thumbHeight = Math.round(H * 0.26);
+      var sourceW = visual.type === 'video' ? visual.el.videoWidth : visual.el.naturalWidth;
+      var sourceH = visual.type === 'video' ? visual.el.videoHeight : visual.el.naturalHeight;
+      var mainH = H - thumbHeight - pad * 2;
+      if (sourceW && sourceH) {
+        var fit = Math.min(W / sourceW, mainH / sourceH);
+        var dw = sourceW * fit;
+        var dh = sourceH * fit;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, mainH);
+        try { ctx.drawImage(visual.el, (W - dw) / 2, (mainH - dh) / 2, dw, dh); } catch (e) { /* frame not ready */ }
+      }
+      if (parts.length) {
+        var tw = Math.min((W - pad * (parts.length + 1)) / parts.length, thumbHeight * 16 / 9);
+        var th = tw * 9 / 16;
+        parts.slice(0, 6).forEach(function (part, i) {
+          var x = pad + i * (tw + pad);
+          var y = H - th;
+          drawRecordingTile(ctx, part.video, x, y, tw, th);
+          drawRecordingLabel(ctx, part.name, x, y);
+        });
+      }
+    } else {
+      var count = Math.max(1, parts.length);
+      var cols = count === 1 ? 1 : count === 2 ? 2 : Math.ceil(Math.sqrt(count));
+      var rows = Math.ceil(count / cols);
+      var gap = 0; // one room: tiles butt together with no dividing lines
+      var cellW = (W - gap * (cols + 1)) / cols;
+      var cellH = (H - gap * (rows + 1)) / rows;
+      parts.forEach(function (part, i) {
+        var x = gap + (i % cols) * (cellW + gap);
+        var y = gap + Math.floor(i / cols) * (cellH + gap);
+        drawRecordingTile(ctx, part.video, x, y, cellW, cellH);
+        drawRecordingLabel(ctx, part.name, x, y);
+      });
+    }
+
+    if (recTrack && recTrack.requestFrame) {
+      try { recTrack.requestFrame(); } catch (e) { /* older engines paint on change */ }
+    }
+  }
+
+  function releaseRecording() {
+    if (recTimer) clearInterval(recTimer);
+    recTimer = 0;
+    if (recCanvasStream) {
+      recCanvasStream.getTracks().forEach(function (track) { try { track.stop(); } catch (e) { /* noop */ } });
+      recCanvasStream = null;
+    }
+    recTrack = null;
+    if (recMixedStream) {
+      recMixedStream.getTracks().forEach(function (track) { try { track.stop(); } catch (e) { /* noop */ } });
+      recMixedStream = null;
+    }
+    if (recAudioCtx) { try { recAudioCtx.close(); } catch (e) { /* noop */ } recAudioCtx = null; }
+    recCanvas = null;
+    recCtx = null;
+  }
+
+  function buildRecordingStream() {
+    releaseRecording();
+    var size = recordSize();
+    recCanvas = document.createElement('canvas');
+    recCanvas.width = size.w;
+    recCanvas.height = size.h;
+    recCtx = recCanvas.getContext('2d');
+
+    // Frames are pushed explicitly. Some Chromium builds throw away
+    // automatically captured canvas frames as soon as audio is muxed in,
+    // which produced empty recordings.
+    recCanvasStream = recCanvas.captureStream(0);
+    recTrack = recCanvasStream.getVideoTracks()[0];
+    if (!recTrack || !recTrack.requestFrame) {
+      recCanvasStream.getTracks().forEach(function (track) { try { track.stop(); } catch (e) { /* noop */ } });
+      recCanvasStream = recCanvas.captureStream(30);
+      recTrack = recCanvasStream.getVideoTracks()[0];
+    }
+
+    drawRecordingFrame();
+    recTimer = setInterval(drawRecordingFrame, 33);
+
+    var tracks = recCanvasStream.getVideoTracks().slice();
+    var audio = buildRecordingAudio();
+    if (audio) tracks = tracks.concat(audio.getAudioTracks());
+    recMixedStream = new MediaStream(tracks);
+    return recMixedStream;
+  }
+
   function startRecording() {
     if (!localStream || !localStream.getAudioTracks().length && !localStream.getVideoTracks().length) {
       ZS.toast('Connect a camera or microphone before recording.', 'error');
@@ -472,9 +689,11 @@
       var mime = pickMime();
       var options = {};
       if (mime) options.mimeType = mime;
-      options.videoBitsPerSecond = prefs.quality === '720' ? 1500000 : 2500000;
+      options.videoBitsPerSecond = prefs.quality === '720' ? 2500000 : 5500000;
       options.audioBitsPerSecond = 128000;
-      recorder = new MediaRecorder(localStream, options);
+      var mixed = buildRecordingStream();
+      if (!mixed || !mixed.getVideoTracks().length) throw new Error('No recordable surface');
+      recorder = new MediaRecorder(mixed, options);
       chunks = [];
       recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
       recorder.onstop = finalizeRecording;
@@ -487,7 +706,7 @@
       $('recordBtn').title = 'Stop recording';
       $('recordBtn').querySelector('.ctl-icon').innerHTML = zIcon('square');
       startTicker();
-      showNote('Recording started — capture stays on this device', 3200);
+      showNote('Recording the studio — every participant and whatever is shared', 3600);
     } catch (e) {
       ZS.toast('Could not start recording on this device.', 'error');
     }
@@ -516,6 +735,7 @@
   }
 
   function finalizeRecording() {
+    releaseRecording();
     var blob = new Blob(chunks, { type: (chunks[0] && chunks[0].type) || 'video/webm' });
     if (!blob.size) {
       $('recTime').textContent = 'Not recording';
