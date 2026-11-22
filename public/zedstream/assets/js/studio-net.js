@@ -69,6 +69,7 @@ window.ZSN = (function () {
       videoTrack: null,
       shareTrack: null,
       shareAudioTrack: null,
+      stream: null,
       shareStream: null,
       audioTrack: null,
       polite: false,
@@ -125,6 +126,7 @@ window.ZSN = (function () {
         if (!entry.videoTrack) {
           entry.videoTrack = track;
           entry.videoStream = new MediaStream([track]);
+          addPeerTrack(entry, track);
           emit('peer-media', entry);
         } else if (!entry.shareTrack) {
           entry.shareTrack = track;
@@ -133,6 +135,8 @@ window.ZSN = (function () {
       } else if (track.kind === 'audio') {
         if (!entry.audioTrack) {
           entry.audioTrack = track;
+          addPeerTrack(entry, track);
+          emit('peer-media', entry);
         } else if (!entry.shareAudioTrack) {
           entry.shareAudioTrack = track;
           rebuildShareStream(entry);
@@ -147,6 +151,14 @@ window.ZSN = (function () {
     };
 
     return entry;
+  }
+
+  // The peer's own camera and microphone, played together so their voice is
+  // audible in the studio and can be mixed into a recording.
+  function addPeerTrack(entry, track) {
+    if (!entry.stream) entry.stream = new MediaStream();
+    var known = entry.stream.getTracks().some(function (candidate) { return candidate.id === track.id; });
+    if (!known) entry.stream.addTrack(track);
   }
 
   function rebuildShareStream(entry) {
