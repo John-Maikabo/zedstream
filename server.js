@@ -903,8 +903,8 @@ function handleZedConnection(ws, url) {
         peers = new Map();
         zedRooms.set(roomId, peers);
     }
-    if (peers.size >= 8) {
-        ws.close(1008, 'This studio is full');
+    if (peers.size >= 10) {
+        ws.close(1008, 'This studio already has 10 participants');
         return;
     }
 

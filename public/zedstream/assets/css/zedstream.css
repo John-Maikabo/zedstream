@@ -1277,3 +1277,18 @@ body.studio-body::before { background: radial-gradient(1000px 600px at 50% 0%, r
   .share-head-actions { width: 100%; margin-left: 0; justify-content: space-between; }
   .album-art { width: 140px; height: 140px; border-radius: 16px; }
 }
+
+/* fuller rooms: 3 and 4 column stages for up to 10 participants */
+.video-grid.crowd-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+.video-grid.crowd-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+
+@media (max-width: 1180px) {
+  .video-grid.crowd-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .video-grid.crowd-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .video-grid.crowd-3, .video-grid.crowd-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .video-grid.crowd-3, .video-grid.crowd-4 { grid-template-columns: minmax(0, 1fr); }
+}

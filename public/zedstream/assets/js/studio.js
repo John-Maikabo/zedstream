@@ -186,7 +186,7 @@
   function renderGrid() {
     var grid = $('videoGrid');
     var guests = session ? (session.guests || []).filter(function (g) { return !guest || g.id !== guest.id; }) : [];
-    var waiting = guests.slice(0, 3);
+    var waiting = guests.slice(0, 6);
     var tiles = [];
 
     tiles.push(
@@ -257,7 +257,8 @@
       );
     }
 
-    grid.className = 'video-grid' + (tiles.length === 1 ? ' solo' : tiles.length >= 3 ? ' triple' : '');
+    grid.className = 'video-grid' +
+      (tiles.length === 1 ? ' solo' : tiles.length === 2 ? '' : tiles.length <= 4 ? ' triple' : tiles.length <= 6 ? ' crowd-3' : ' crowd-4');
     grid.innerHTML = tiles.join('');
 
     peers.forEach(function (peer) {
@@ -1095,6 +1096,10 @@
     window.ZSN.on('doc', function (message) { showRemoteDoc(message); });
     window.ZSN.on('status', function (state) {
       if (state.state === 'joined') showNote('Connected to the studio room', 2600);
+      if (state.state === 'refused') {
+        showNote(state.reason || 'This studio is full', 8000);
+        ZS.toast(state.reason || 'This studio is full', 'error');
+      }
       renderPeople();
     });
   }

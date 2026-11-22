@@ -307,7 +307,13 @@ window.ZSN = (function () {
       handleMessage(message);
     };
 
-    socket.onclose = function () {
+    socket.onclose = function (event) {
+      if (event && event.code === 1008) {
+        // The room refused us (full, or no room id): do not hammer it with retries
+        started = false;
+        emit('status', { state: 'refused', reason: event.reason || 'The studio room was closed' });
+        return;
+      }
       emit('status', { state: 'closed' });
       if (intentional || !started) return;
       clearTimeout(reconnectTimer);
