@@ -36,13 +36,66 @@
 
     <div class="studio-main">
       <section class="stage">
-        <div class="presentation-stage hidden" id="presentationStage" style="flex:1;display:flex;flex-direction:column;gap:10px;min-height:0">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--border)">
-            <span class="small" style="display:flex;align-items:center;gap:8px"><i data-i="monitor"></i> <span id="shareLabel">You are sharing your screen</span></span>
-            <button class="btn btn-sm btn-danger" type="button" id="stopShareBtn"><i data-i="x"></i> Stop sharing</button>
+        <div class="share-stage hidden" id="shareStage">
+          <div class="share-head">
+            <div class="share-source">
+              <span class="share-kind" id="shareKind">Screen</span>
+              <div>
+                <strong id="shareTitle">Your screen</strong>
+                <small id="shareSub">Live from this device</small>
+              </div>
+            </div>
+            <div class="share-head-actions">
+              <button class="btn btn-sm btn-ghost btn-icon-only hidden" type="button" id="sharePrev" aria-label="Previous item"><i data-i="chevronLeft"></i></button>
+              <button class="btn btn-sm btn-ghost btn-icon-only hidden" type="button" id="shareNext" aria-label="Next item"><i data-i="chevronRight"></i></button>
+              <button class="btn btn-sm btn-soft" type="button" id="sharePlayBtn"><i data-i="pause"></i> <span>Pause</span></button>
+              <div class="volume-control">
+                <button class="share-mute" type="button" id="shareMute" aria-label="Mute shared audio"><i data-i="volume"></i></button>
+                <input type="range" id="shareVolume" min="0" max="100" value="85" aria-label="Shared audio volume">
+              </div>
+              <button class="btn btn-sm btn-danger" type="button" id="closeShareBtn"><i data-i="x"></i> Close</button>
+            </div>
           </div>
-          <div style="flex:1;min-height:0;border-radius:16px;overflow:hidden;border:1px solid var(--border);background:#05050a;display:grid;place-items:center">
-            <video id="screenVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain"></video>
+
+          <div class="share-body">
+            <div class="share-canvas">
+              <video id="shareVideo" playsinline></video>
+              <audio id="shareAudio" class="hidden"></audio>
+
+              <div class="share-audio-visual hidden" id="shareAudioVisual">
+                <div class="album-art" id="shareAlbumArt"><i data-i="music"></i></div>
+                <div>
+                  <strong class="share-track" id="shareTrack">Track</strong>
+                  <p class="tiny muted" style="margin-top:4px">Shared from this device</p>
+                </div>
+                <div class="share-wave" aria-hidden="true">
+                  <i style="height:40%"></i><i style="height:72%"></i><i style="height:52%"></i><i style="height:92%"></i>
+                  <i style="height:60%"></i><i style="height:100%"></i><i style="height:44%"></i><i style="height:78%"></i>
+                  <i style="height:54%"></i><i style="height:88%"></i><i style="height:36%"></i><i style="height:66%"></i>
+                  <i style="height:48%"></i><i style="height:80%"></i>
+                </div>
+                <div class="share-progress" id="shareProgressWrap">
+                  <input type="range" id="shareSeek" min="0" max="100" value="0" aria-label="Seek within the shared file">
+                  <span id="shareTime">0:00 / 0:00</span>
+                </div>
+              </div>
+
+              <img id="shareImage" class="hidden" alt="Shared document preview">
+              <iframe id="shareDoc" class="hidden" title="Shared document"></iframe>
+              <pre id="shareText" class="hidden"></pre>
+
+              <div class="share-discuss hidden" id="shareDiscuss">
+                <span class="badge badge-violet"><i data-i="message"></i> Paused for discussion</span>
+                <h3>Take the moment.</h3>
+                <p>Talk it through, then pick up exactly where you left off.</p>
+                <button class="btn btn-primary" type="button" id="resumeShareBtn"><i data-i="play"></i> Resume</button>
+              </div>
+            </div>
+
+            <aside class="share-queue hidden" id="shareQueue">
+              <h3><i data-i="layers" data-cls="sm"></i> In this share</h3>
+              <div id="shareQueueList"></div>
+            </aside>
           </div>
         </div>
 
@@ -107,7 +160,7 @@
         <button class="ctl" type="button" id="camBtn" title="Turn camera off">
           <span class="ctl-icon"><i data-i="video"></i></span><span id="camLabel">Cam</span>
         </button>
-        <button class="ctl" type="button" id="shareBtn" title="Share your screen">
+        <button class="ctl" type="button" id="shareBtn" title="Share a screen, song, movie or document">
           <span class="ctl-icon"><i data-i="monitor"></i></span><span>Share</span>
         </button>
         <div class="bar-sep"></div>
@@ -173,6 +226,50 @@
       </div>
     </div>
   </div>
+
+  <!-- Share picker -->
+  <div class="overlay" id="shareModal">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="shareModalTitle">Share with the studio</h2>
+          <p>Bring a screen, song, movie or document into the stage — pause to discuss, close when you're done.</p>
+        </div>
+        <button class="icon-btn" type="button" data-close="shareModal" aria-label="Close"><i data-i="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="share-picker">
+          <button class="share-option" type="button" data-share-kind="screen">
+            <span class="share-option-icon"><i data-i="monitorPlay"></i></span>
+            <strong>Screen or window</strong>
+            <span>Share a whole screen, an app window or one browser tab, with system audio so the sound comes through.</span>
+          </button>
+          <button class="share-option" type="button" data-share-kind="audio">
+            <span class="share-option-icon"><i data-i="music"></i></span>
+            <strong>Song or album</strong>
+            <span>Choose one track or a whole album. Play, pause, set the volume and skip through the queue.</span>
+          </button>
+          <button class="share-option" type="button" data-share-kind="video">
+            <span class="share-option-icon"><i data-i="film"></i></span>
+            <strong>Movie or clip</strong>
+            <span>Open a video from this machine in the stage, with full transport controls while the episode runs.</span>
+          </button>
+          <button class="share-option" type="button" data-share-kind="doc">
+            <span class="share-option-icon"><i data-i="fileText"></i></span>
+            <strong>Document</strong>
+            <span>Bring up a PDF, image, note or transcript to read through together.</span>
+          </button>
+        </div>
+        <p class="hint"><i data-i="shield"></i> Files open straight from your disk and nothing is uploaded. Guest feeds are not networked in this local studio yet, so this shared preview plays on this device.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close="shareModal">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <input type="file" id="audioInput" accept="audio/*" multiple class="hidden">
+  <input type="file" id="videoInput" accept="video/*" multiple class="hidden">
+  <input type="file" id="docInput" accept="image/*,application/pdf,text/plain,.txt,.md,.csv,.json" multiple class="hidden">
 
   <!-- Settings -->
   <div class="overlay" id="studioSettings">

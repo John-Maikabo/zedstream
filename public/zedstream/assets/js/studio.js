@@ -11,7 +11,6 @@
   var guest = null;
   var role = 'host';
   var localStream = null;
-  var screenStream = null;
   var audioCtx = null;
   var analyser = null;
   var meterRAF = null;
@@ -549,33 +548,283 @@
     if (blob) blob._saved = true;
   }
 
-  /* ---------- screen share ---------- */
-  function startShare() {
+  /* ============================================================
+     sharing: screen / window, song or album, movie, document
+     ============================================================ */
+  var share = { mode: 'none', queue: [], index: 0, screen: null, volume: 0.85, muted: false };
+
+  function setShareHead(kind, title, sub) {
+    $('shareKind').textContent = kind;
+    $('shareTitle').textContent = title;
+    $('shareSub').textContent = sub;
+  }
+
+  function resetShareCanvas() {
+    var video = $('shareVideo');
+    var audio = $('shareAudio');
+    if (video) {
+      video.pause();
+      video.srcObject = null;
+      video.removeAttribute('src');
+      video.classList.add('hidden');
+    }
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+    }
+    $('shareImage').classList.add('hidden');
+    $('shareImage').removeAttribute('src');
+    $('shareDoc').classList.add('hidden');
+    $('shareDoc').removeAttribute('src');
+    $('shareText').classList.add('hidden');
+    $('shareText').textContent = '';
+    $('shareAudioVisual').classList.add('hidden');
+    $('shareAlbumArt').classList.remove('playing');
+    $('shareDiscuss').classList.add('hidden');
+    $('shareProgressWrap').classList.add('hidden');
+  }
+
+  function activeMediaEl() {
+    if (share.mode !== 'media' || !share.queue.length) return null;
+    var item = share.queue[share.index];
+    if (!item) return null;
+    if (item.kind === 'audio') return $('shareAudio');
+    if (item.kind === 'video') return $('shareVideo');
+    return null;
+  }
+
+  function syncShareButton() {
+    var btn = $('sharePlayBtn');
+    if (!btn) return;
+    if (share.mode === 'screen') {
+      btn.innerHTML = zIcon('message') + '<span>Discuss</span>';
+      return;
+    }
+    var el = activeMediaEl();
+    var paused = !el || el.paused;
+    btn.innerHTML = paused
+      ? zIcon('play') + '<span>Play</span>'
+      : zIcon('pause') + '<span>Pause</span>';
+  }
+
+  function applyShareVolume() {
+    ['shareAudio', 'shareVideo'].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      el.muted = share.muted;
+      el.volume = share.volume;
+    });
+    $('shareVolume').value = String(Math.round((share.muted ? 0 : share.volume) * 100));
+    $('shareMute').innerHTML = zIcon(share.muted ? 'volumeOff' : 'volume');
+    $('shareMute').classList.toggle('muted', share.muted);
+  }
+
+  function updateShareProgress() {
+    var el = activeMediaEl();
+    var seek = $('shareSeek');
+    var label = $('shareTime');
+    if (!el) {
+      label.textContent = '0:00 / 0:00';
+      seek.value = '0';
+      return;
+    }
+    var duration = isFinite(el.duration) ? el.duration : 0;
+    seek.max = String(Math.max(1, Math.round(duration)));
+    seek.value = String(Math.round(el.currentTime || 0));
+    label.textContent = ZS.fmtDuration(el.currentTime || 0) + ' / ' + ZS.fmtDuration(duration);
+  }
+
+  function renderShareQueue() {
+    $('shareQueueList').innerHTML = share.queue.map(function (item, i) {
+      var icon = item.kind === 'audio' ? 'music' : item.kind === 'video' ? 'film' : 'fileText';
+      return '<button class="share-item' + (i === share.index ? ' active' : '') + '" type="button" data-share-index="' + i + '">' +
+        zIcon(icon) + '<span><strong>' + ZS.esc(item.name) + '</strong><small>' + ZS.esc(item.kind) + '</small></span></button>';
+    }).join('');
+  }
+
+  function loadShareItem(index) {
+    if (!share.queue.length) return;
+    share.index = Math.max(0, Math.min(index, share.queue.length - 1));
+    var item = share.queue[share.index];
+    resetShareCanvas();
+
+    var isAudio = item.kind === 'audio';
+    var isVideo = item.kind === 'video';
+    var isImage = /^image\//.test(item.file.type);
+
+    $('shareTitle').textContent = item.name;
+    $('shareKind').textContent = isAudio ? 'Audio' : isVideo ? 'Video' : 'Document';
+    $('shareSub').textContent = (share.queue.length > 1 ? 'Item ' + (share.index + 1) + ' of ' + share.queue.length + ' · ' : '') +
+      'Local file · never uploaded';
+    $('shareProgressWrap').classList.toggle('hidden', !(isAudio || isVideo));
+    $('sharePrev').classList.toggle('hidden', share.queue.length < 2);
+    $('shareNext').classList.toggle('hidden', share.queue.length < 2);
+    renderShareQueue();
+
+    if (isAudio) {
+      $('shareAudioVisual').classList.remove('hidden');
+      $('shareAlbumArt').classList.add('playing');
+      $('shareTrack').textContent = item.name.replace(/\.[^.]+$/, '');
+      var audio = $('shareAudio');
+      audio.src = item.url;
+      audio.volume = share.volume;
+      audio.muted = share.muted;
+      audio.play().catch(function () { /* the play button starts it */ });
+    } else if (isVideo) {
+      var video = $('shareVideo');
+      video.srcObject = null;
+      video.src = item.url;
+      video.muted = share.muted;
+      video.volume = share.volume;
+      video.classList.remove('hidden');
+      video.play().catch(function () { /* the play button starts it */ });
+    } else if (isImage) {
+      $('shareImage').src = item.url;
+      $('shareImage').classList.remove('hidden');
+    } else if (/\.pdf$/i.test(item.name)) {
+      $('shareDoc').src = item.url;
+      $('shareDoc').classList.remove('hidden');
+    } else {
+      $('shareText').textContent = item.text ||
+        'This file type cannot be previewed in the studio. PDFs, images, text, audio and video work best.';
+      $('shareText').classList.remove('hidden');
+    }
+
+    syncShareButton();
+    updateShareProgress();
+    if (window.zHydrateIcons) window.zHydrateIcons();
+  }
+
+  function openShareFiles(kind, fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    var items = files.map(function (file) {
+      return { kind: kind, name: file.name, file: file, url: URL.createObjectURL(file), text: '' };
+    });
+
+    var textJobs = items.filter(function (item) {
+      return kind === 'doc' && (/^text\//.test(item.file.type) || /\.(txt|md|csv|json|srt|vtt)$/i.test(item.name));
+    }).map(function (item) {
+      return new Promise(function (resolve) {
+        var reader = new FileReader();
+        reader.onload = function () { item.text = String(reader.result || '').slice(0, 60000); resolve(); };
+        reader.onerror = function () { resolve(); };
+        reader.readAsText(item.file);
+      });
+    });
+
+    Promise.all(textJobs).then(function () {
+      closeShare(true);
+      share.muted = false;
+      share.mode = 'media';
+      share.queue = items;
+      share.index = 0;
+      $('shareStage').classList.remove('hidden');
+      $('videoGrid').classList.add('hidden');
+      $('shareBtn').classList.add('active');
+      $('shareQueue').classList.toggle('hidden', items.length < 2);
+      loadShareItem(0);
+      ZS.closeModal('shareModal');
+      showNote(items.length > 1 ? 'Loaded ' + items.length + ' items into the share queue' : 'Opened ' + items[0].name, 3600);
+    });
+  }
+
+  function startScreenShare() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
       ZS.toast('Screen sharing is not available in this browser.', 'error');
       return;
     }
-    navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).then(function (stream) {
-      screenStream = stream;
-      $('screenVideo').srcObject = stream;
-      $('presentationStage').classList.remove('hidden');
+    navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30 } }, audio: true }).then(function (stream) {
+      closeShare(true);
+      share.muted = false;
+      share.mode = 'screen';
+      share.screen = stream;
+      resetShareCanvas();
+
+      $('shareStage').classList.remove('hidden');
       $('videoGrid').classList.add('hidden');
       $('shareBtn').classList.add('active');
-      showNote('You are sharing your screen', 3200);
-      stream.getVideoTracks()[0].addEventListener('ended', stopShare);
-    }).catch(function () {
-      ZS.toast('Screen share was cancelled.', 'error');
+      $('shareQueue').classList.add('hidden');
+      $('sharePrev').classList.add('hidden');
+      $('shareNext').classList.add('hidden');
+      $('shareProgressWrap').classList.add('hidden');
+
+      var video = $('shareVideo');
+      video.srcObject = stream;
+      video.classList.remove('hidden');
+      video.muted = false;
+      video.volume = share.volume;
+      video.play().catch(function () { /* capture still renders */ });
+
+      var hasAudio = stream.getAudioTracks().length > 0;
+      setShareHead('Screen', 'Your screen or window',
+        hasAudio ? 'Live from this device · system audio on' : 'Live from this device · no audio captured');
+      syncShareButton();
+      applyShareVolume();
+
+      var track = stream.getVideoTracks()[0];
+      if (track) track.addEventListener('ended', function () { closeShare(); });
+
+      ZS.closeModal('shareModal');
+      showNote(hasAudio ? 'Sharing your screen with sound' : 'Sharing your screen — tick “Share audio” for sound', 5200);
+    }).catch(function (err) {
+      if (err && err.name === 'NotAllowedError') ZS.toast('Screen share was cancelled.');
+      else ZS.toast('Screen sharing could not start.', 'error');
     });
   }
 
-  function stopShare() {
-    stopStream(screenStream);
-    screenStream = null;
-    var video = $('screenVideo');
-    if (video) video.srcObject = null;
-    $('presentationStage').classList.add('hidden');
+  function toggleDiscuss() {
+    var overlay = $('shareDiscuss');
+    overlay.classList.toggle('hidden');
+    if (share.mode === 'media') syncShareButton();
+  }
+
+  function toggleSharePlayback() {
+    if (share.mode === 'none') return;
+    if (share.mode === 'screen') { toggleDiscuss(); return; }
+
+    var el = activeMediaEl();
+    if (!el) {
+      ZS.toast('This item is a preview — there is nothing to play.');
+      return;
+    }
+    if (el.paused) {
+      el.play().catch(function () { ZS.toast('Playback was blocked by the browser.', 'error'); });
+      $('shareDiscuss').classList.add('hidden');
+      $('shareAlbumArt').classList.add('playing');
+    } else {
+      el.pause();
+      $('shareDiscuss').classList.remove('hidden');
+      $('shareAlbumArt').classList.remove('playing');
+    }
+    syncShareButton();
+  }
+
+  function skipShare(delta) {
+    if (share.queue.length < 2) return;
+    loadShareItem((share.index + delta + share.queue.length) % share.queue.length);
+  }
+
+  function closeShare(silent) {
+    if (share.screen) {
+      stopStream(share.screen);
+      share.screen = null;
+    }
+    resetShareCanvas();
+    share.queue.forEach(function (item) {
+      try { URL.revokeObjectURL(item.url); } catch (e) { /* noop */ }
+    });
+    share.queue = [];
+    share.index = 0;
+    share.mode = 'none';
+    $('shareStage').classList.add('hidden');
     $('videoGrid').classList.remove('hidden');
     $('shareBtn').classList.remove('active');
+    $('shareQueue').classList.add('hidden');
+    $('shareQueueList').innerHTML = '';
+    $('shareTitle').textContent = 'Nothing shared';
+    $('shareSub').textContent = 'Local studio';
+    if (!silent) showNote('Share closed — back to the studio', 3000);
   }
 
   /* ---------- join / leave ---------- */
@@ -630,8 +879,8 @@
       if (!ok) return;
       if (recorder && recorder.state === 'recording') stopRecording();
       stopMeter();
+      closeShare(true);
       stopStream(localStream);
-      stopStream(screenStream);
       location.href = session ? 'library.html?view=recordings' : 'index.html';
     });
   }
@@ -658,10 +907,74 @@
     });
 
     $('shareBtn').addEventListener('click', function () {
-      if (screenStream) stopShare();
-      else startShare();
+      if (share.mode !== 'none') { closeShare(); return; }
+      ZS.openModal('shareModal');
     });
-    $('stopShareBtn').addEventListener('click', stopShare);
+
+    $('shareModal').addEventListener('click', function (e) {
+      var option = e.target.closest('[data-share-kind]');
+      if (!option) return;
+      var kind = option.getAttribute('data-share-kind');
+      if (kind === 'screen') startScreenShare();
+      else if (kind === 'audio') $('audioInput').click();
+      else if (kind === 'video') $('videoInput').click();
+      else $('docInput').click();
+    });
+
+    $('audioInput').addEventListener('change', function () {
+      openShareFiles('audio', this.files);
+      this.value = '';
+    });
+    $('videoInput').addEventListener('change', function () {
+      openShareFiles('video', this.files);
+      this.value = '';
+    });
+    $('docInput').addEventListener('change', function () {
+      openShareFiles('doc', this.files);
+      this.value = '';
+    });
+
+    $('closeShareBtn').addEventListener('click', function () { closeShare(); });
+    $('sharePlayBtn').addEventListener('click', toggleSharePlayback);
+    $('resumeShareBtn').addEventListener('click', toggleSharePlayback);
+    $('sharePrev').addEventListener('click', function () { skipShare(-1); });
+    $('shareNext').addEventListener('click', function () { skipShare(1); });
+    $('shareQueueList').addEventListener('click', function (e) {
+      var item = e.target.closest('[data-share-index]');
+      if (item) loadShareItem(Number(item.getAttribute('data-share-index')));
+    });
+
+    $('shareMute').addEventListener('click', function () {
+      share.muted = !share.muted;
+      applyShareVolume();
+      showNote(share.muted ? 'Shared audio muted' : 'Shared audio on', 1800);
+    });
+    $('shareVolume').addEventListener('input', function () {
+      share.volume = Number(this.value) / 100;
+      if (share.volume > 0) share.muted = false;
+      applyShareVolume();
+    });
+    $('shareSeek').addEventListener('input', function () {
+      var el = activeMediaEl();
+      if (el) el.currentTime = Number(this.value);
+    });
+
+    ['shareAudio', 'shareVideo'].forEach(function (id) {
+      var el = $(id);
+      el.addEventListener('timeupdate', updateShareProgress);
+      el.addEventListener('loadedmetadata', updateShareProgress);
+      el.addEventListener('play', function () {
+        $('shareAlbumArt').classList.add('playing');
+        syncShareButton();
+      });
+      el.addEventListener('pause', syncShareButton);
+      el.addEventListener('ended', function () {
+        if (share.queue.length > 1) { skipShare(1); return; }
+        $('shareDiscuss').classList.remove('hidden');
+        $('shareAlbumArt').classList.remove('playing');
+        syncShareButton();
+      });
+    });
 
     $('inviteBtn').addEventListener('click', copyInvite);
     $('inviteTopBtn').addEventListener('click', function () { openPeople(); copyInvite(); });
@@ -739,8 +1052,15 @@
 
     window.addEventListener('pagehide', function () {
       stopMeter();
+      closeShare(true);
       stopStream(localStream);
-      stopStream(screenStream);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (share.mode === 'none') return;
+      var tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+      if (e.code === 'Space') { e.preventDefault(); toggleSharePlayback(); }
     });
   }
 
