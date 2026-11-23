@@ -3,118 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard · ZedStream</title>
-  <meta name="description" content="ZedStream podcast production studio — schedule recordings, invite guests and publish episodes.">
+  <title>ZedStream · Start a studio</title>
+  <meta name="description" content="ZedStream — start a studio, allow your camera, send one link and record together.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/zedstream.css">
 </head>
-<body data-page="dashboard">
-  <div class="app">
-    <aside class="sidebar" id="sidebar" aria-label="ZedStream navigation"></aside>
-    <div class="shell">
-      <header class="topbar" id="topbar"></header>
+<body class="landing-body" data-page="landing">
+  <div class="landing">
+    <header class="landing-nav">
+      <a class="brand" href="index.html">
+        <span class="brand-mark"><i data-i="wave"></i></span>
+        <span class="brand-text"><span class="brand-name">Zed<span>Stream</span></span></span>
+      </a>
+      <span class="landing-badge"><span class="live-dot"></span> Up to 10 people</span>
+    </header>
 
-      <main class="page">
-        <section class="hero">
-          <div class="hero-copy">
-            <span class="hero-tag"><i data-i="sparkles"></i> Your Studio. Your Audience. Your Stream.</span>
-            <h1>Welcome back, <em data-host-name>Studio host</em>.</h1>
-            <p>Everything for your next episode in one place — schedule the session, send guest invitations, record the conversation and publish it.</p>
-            <div class="hero-actions">
-              <button class="btn btn-primary btn-lg" type="button" data-action="new-podcast">
-                <i data-i="plus"></i> Create Podcast
-              </button>
-              <a class="btn btn-ghost btn-lg" href="schedule.html"><i data-i="calendarPlus"></i> Schedule Recording</a>
-              <a class="btn btn-soft btn-lg" href="studio.html"><i data-i="radio"></i> Start Recording</a>
-            </div>
-          </div>
-          <div class="hero-side" aria-hidden="true">
-            <div class="wave-art">
-              <span style="height:34%"></span><span style="height:62%"></span><span style="height:44%"></span>
-              <span style="height:86%"></span><span style="height:56%"></span><span style="height:100%"></span>
-              <span style="height:48%"></span><span style="height:74%"></span><span style="height:38%"></span>
-              <span style="height:66%"></span><span style="height:30%"></span><span style="height:54%"></span>
-            </div>
-          </div>
-        </section>
+    <main class="landing-hero">
+      <span class="hero-tag"><i data-i="sparkles"></i> Your Studio. Your Audience. Your Stream.</span>
+      <h1>Start your studio.<br><em>Send one link.</em></h1>
+      <p class="landing-lede">Click start, allow your camera, and you get a link. Anyone who opens it joins your room — voice, video and shared screens.</p>
 
-        <section class="stat-grid" id="statGrid" aria-label="Podcast statistics"></section>
+      <button class="btn btn-primary btn-xl" type="button" id="startBtn">
+        <i data-i="radio"></i> <span id="startLabel">Start</span>
+      </button>
 
-        <div class="cols">
-          <section class="card" aria-labelledby="upcomingTitle">
-            <div class="panel-head">
-              <h2 id="upcomingTitle"><i data-i="calendar"></i> Upcoming podcast sessions</h2>
-              <a class="section-link" href="schedule.html">Schedule new <i data-i="arrowRight" data-cls="sm"></i></a>
-            </div>
-            <div class="panel-body" id="upcomingList"></div>
-          </section>
+      <p class="landing-hint"><i data-i="shield"></i> No account. Nothing uploaded. Recordings stay on your device.</p>
 
-          <div class="stack">
-            <section class="card" aria-labelledby="invitesTitle">
-              <div class="panel-head">
-                <h2 id="invitesTitle"><i data-i="mail"></i> Pending invitations</h2>
-                <a class="section-link" href="guests.html">All guests <i data-i="arrowRight" data-cls="sm"></i></a>
-              </div>
-              <div class="panel-body" id="pendingList"></div>
-            </section>
-
-            <section class="card" aria-labelledby="recordingsTitle">
-              <div class="panel-head">
-                <h2 id="recordingsTitle"><i data-i="video"></i> Quick access to recordings</h2>
-                <a class="section-link" href="library.html?view=recordings">Library <i data-i="arrowRight" data-cls="sm"></i></a>
-              </div>
-              <div class="panel-body" id="recordingsList"></div>
-            </section>
-          </div>
+      <section class="link-panel" id="linkPanel" hidden aria-live="polite">
+        <div class="link-panel-head">
+          <strong>Your studio is ready</strong>
+          <span class="link-status" id="linkStatus">Camera ready</span>
         </div>
-
-        <div class="section-head">
-          <h2><i data-i="headphones"></i> Recent episodes</h2>
-          <a class="section-link" href="library.html?view=episodes">Episode library <i data-i="arrowRight" data-cls="sm"></i></a>
+        <label class="link-label" for="roomLink">Send this link to your guests</label>
+        <div class="link-row">
+          <input class="input" id="roomLink" readonly>
+          <button class="btn btn-soft" type="button" id="copyLinkBtn"><i data-i="copy"></i> Copy</button>
         </div>
-        <div class="episode-grid stagger" id="recentEpisodes"></div>
-      </main>
-    </div>
-  </div>
-
-  <!-- Create podcast -->
-  <div class="overlay" id="podcastModal">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="podcastModalTitle">
-      <div class="modal-head">
-        <div>
-          <h2 id="podcastModalTitle">Create a podcast</h2>
-          <p>A podcast groups your episodes and sessions.</p>
-        </div>
-        <button class="icon-btn" type="button" data-close="podcastModal" aria-label="Close"><i data-i="x"></i></button>
-      </div>
-      <form id="podcastForm">
-        <div class="modal-body">
-          <div class="field">
-            <label for="podcastName">Podcast name <span class="req">*</span></label>
-            <input class="input" id="podcastName" maxlength="70" placeholder="e.g. The Signal Room" required>
-            <span class="field-error">Give your podcast a name.</span>
-          </div>
-          <div class="field">
-            <label for="podcastAbout">Description</label>
-            <textarea class="textarea" id="podcastAbout" rows="3" maxlength="240" placeholder="What is this show about? Who is it for?"></textarea>
-          </div>
-          <div class="field">
-            <label for="podcastHost">Host</label>
-            <input class="input" id="podcastHost" maxlength="70" placeholder="Your name on air">
-          </div>
-        </div>
-        <div class="modal-foot">
-          <button class="btn btn-ghost" type="button" data-close="podcastModal">Cancel</button>
-          <button class="btn btn-primary" type="submit"><i data-i="check"></i> Create podcast</button>
-        </div>
-      </form>
-    </div>
+        <button class="btn btn-primary btn-block" type="button" id="enterBtn">Enter studio <i data-i="arrowRight"></i></button>
+      </section>
+    </main>
   </div>
 
   <script src="assets/js/icons.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/dashboard.js"></script>
+  <script src="assets/js/landing.js"></script>
 </body>
 </html>

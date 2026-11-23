@@ -24,8 +24,10 @@
   var camOn = true;
   var joined = false;
   var linkTitle = '';
+  var roomId = '';
+  var previewAttempted = false;
   var netStarted = false;
-  var prefs = { background: 'none', quality: '1080', episode: '' };
+  var prefs = { background: 'none', quality: '1080', episode: '', mirror: true, noise: true };
   var recCanvas = null;
   var recCtx = null;
   var recTimer = 0;
@@ -79,37 +81,50 @@
       var found = (session.guests || []).filter(function (g) { return g.id === guestId; })[0];
       if (found) { guest = found; role = 'guest'; }
     }
+
+    // A room link is self-contained: whoever opens it joins the same room,
+    // with no schedule entry or invitation token to look up.
+    var roomParam = params.get('room');
+    if (roomParam) {
+      var hosting = params.get('host') === '1' || params.get('start') === '1';
+      session = null;
+      guest = null;
+      role = hosting ? 'host' : 'guest';
+      roomId = roomParam;
+    } else if (session) {
+      roomId = session.id;
+    } else {
+      roomId = 'zed-' + Math.random().toString(36).slice(2, 8);
+      var url = new URL(location.href);
+      url.searchParams.set('room', roomId);
+      url.searchParams.set('host', '1');
+      history.replaceState(null, '', url.pathname + '?' + url.searchParams.toString());
+      role = 'host';
+    }
   }
 
   function contextTitle() {
     if (session) return session.episodeTitle || 'Untitled episode';
     if (linkTitle) return linkTitle;
-    return 'Ad-hoc recording session';
+    return 'Live studio';
   }
 
   function roomKey() {
-    var params = new URLSearchParams(location.search);
-    if (session) return session.id;
-    var fromLink = params.get('s');
-    if (fromLink) return fromLink;
-    return 'studio-lobby';
+    return roomId;
+  }
+
+  function guestRoomLink() {
+    return ZS.baseUrl() + 'studio.html?room=' + encodeURIComponent(roomId);
   }
 
   function fillContext() {
     $('studioTitle').textContent = contextTitle();
     $('studioSub').textContent = role === 'guest'
       ? 'Guest room · joined by invitation'
-      : (session ? ZS.fmtDateLong(session.date, session.time) : 'Local studio · nothing scheduled');
-    $('panelEpisode').textContent = contextTitle();
-    $('panelMeta').textContent = session
-      ? ZS.podcastName(session.podcastId, session.podcastName) + ' · ' + ZS.fmtDateLong(session.date, session.time)
-      : 'No podcast selected';
-
-    var guests = session ? (session.guests || []) : [];
-    $('panelGuests').textContent = guests.length + (guests.length === 1 ? ' guest' : ' guests');
+      : (session ? ZS.fmtDateLong(session.date, session.time) : 'Copy the invite link to bring guests in');
     $('participantsCount').textContent = '1';
 
-    var name = guest ? guest.name : (ZS.state().settings.displayName || 'Host');
+    var name = guest ? guest.name : (ZS.state().settings.displayName || (role === 'guest' ? 'Guest' : 'Host'));
     $('lobbyName').value = name || '';
     $('previewInitials').textContent = ZS.initials(name || 'You');
     $('previewName').textContent = name || 'Your camera';
@@ -182,12 +197,14 @@
     });
 
     list.innerHTML = html;
+    var panelCount = $('panelGuests');
+    if (panelCount) panelCount.textContent = String(1 + peers.length);
     if (window.zHydrateIcons) window.zHydrateIcons();
   }
 
   /* ---------- tiles ---------- */
   function selfName() {
-    return guest ? guest.name : (ZS.state().settings.displayName || 'Host');
+    return guest ? guest.name : (ZS.state().settings.displayName || (role === 'guest' ? 'Guest' : 'Host'));
   }
 
   function renderGrid() {
@@ -314,21 +331,22 @@
       v.style.background = 'transparent';
       if (bgSetting === 'blur') {
         v.style.filter = 'blur(9px)';
-        v.style.transform = $('mirrorToggle') && $('mirrorToggle').checked ? 'scaleX(-1) scale(1.06)' : 'scale(1.06)';
+        v.style.transform = prefs.mirror ? 'scaleX(-1) scale(1.06)' : 'scale(1.06)';
       } else if (bgSetting === 'soft') {
         v.style.filter = 'saturate(1.05) contrast(1.03)';
-        v.style.transform = $('mirrorToggle') && $('mirrorToggle').checked ? 'scaleX(-1)' : 'none';
+        v.style.transform = prefs.mirror ? 'scaleX(-1)' : 'none';
       } else {
         v.style.filter = 'none';
-        v.style.transform = $('mirrorToggle') && $('mirrorToggle').checked ? 'scaleX(-1)' : 'none';
+        v.style.transform = prefs.mirror ? 'scaleX(-1)' : 'none';
       }
     });
     var self = $('selfTile');
-    if (self) self.classList.toggle('mirror', !!($('mirrorToggle') && $('mirrorToggle').checked));
+    if (self) self.classList.toggle('mirror', !!prefs.mirror);
   }
 
   /* ---------- devices ---------- */
   function startPreview(audioOnly) {
+    previewAttempted = true;
     var constraints = audioOnly
       ? { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       : { audio: { echoCancellation: true, noiseSuppression: true }, video: { width: { ideal: 1280 }, height: { ideal: 720 } } };
@@ -437,16 +455,16 @@
 
   /* ---------- invitations ---------- */
   function copyInvite() {
+    if (role === 'guest') {
+      ZS.copyText(location.href, 'Room link copied');
+      return;
+    }
     if (session && (session.guests || []).length) {
       var g = guest || session.guests[0];
       ZS.copyText(ZS.inviteUrl(session, g), 'Guest joining link copied');
       return;
     }
-    if (session) {
-      ZS.copyText(ZS.baseUrl() + 'studio.html?s=' + encodeURIComponent(session.id), 'Studio link copied — add guests on the schedule page');
-      return;
-    }
-    ZS.copyText(ZS.baseUrl() + 'studio.html', 'Studio link copied');
+    ZS.copyText(guestRoomLink(), 'Guest link copied — send it to anyone you want in the room');
   }
 
   function openPeople() {
@@ -1393,7 +1411,7 @@
     renderGrid();
     renderPeople();
     updateParticipants();
-    if (!localStream) startPreview(audioOnly);
+    if (!localStream && !previewAttempted) startPreview(audioOnly);
     showNote(audioOnly ? 'Joined with audio only — camera off' : 'You are live in the studio', 3600);
     if (window.zHydrateIcons) window.zHydrateIcons();
   }
@@ -1530,20 +1548,16 @@
     $('peopleToggle').addEventListener('click', togglePeople);
     $('peopleClose').addEventListener('click', function () { $('peoplePanel').classList.add('collapsed'); });
 
-    $('mirrorToggle').addEventListener('change', function () {
+    $('settingMirror').addEventListener('change', function () {
+      prefs.mirror = this.checked;
       applyCameraLook();
       var tile = $('selfTile');
       if (tile) tile.classList.toggle('mirror', this.checked);
     });
 
-    $('blurToggle').addEventListener('change', function () {
-      prefs.background = this.checked ? 'blur' : 'none';
-      $('settingBackground').value = this.checked ? 'blur' : 'none';
-      applyCameraLook();
-    });
-
-    $('noiseToggle').addEventListener('change', function () {
+    $('settingNoise').addEventListener('change', function () {
       var enabled = this.checked;
+      prefs.noise = enabled;
       if (!localStream) return;
       localStream.getAudioTracks().forEach(function (track) {
         if (track.applyConstraints) {
@@ -1557,7 +1571,6 @@
 
     $('settingBackground').addEventListener('change', function () {
       prefs.background = this.value;
-      $('blurToggle').checked = this.value === 'blur';
       applyCameraLook();
     });
     $('settingQuality').addEventListener('change', function () {
@@ -1605,10 +1618,19 @@
     wire();
     wireNetwork();
     renderGrid();
+
+    // Coming from the landing page: go straight into the room and keep the
+    // guest link one tap away. Joining does not wait on the camera prompt —
+    // the preview fills in as soon as permission is answered.
+    var autoStart = new URLSearchParams(location.search).get('start') === '1';
     startPreview(false);
+    if (autoStart) {
+      join(false);
+      if (role !== 'guest') showNote('Your studio is live — Invite copies the guest link', 7000);
+    }
     var st = ZS.state().settings;
-    $('mirrorToggle').checked = true;
-    $('blurToggle').checked = prefs.background === 'blur';
+    $('settingMirror').checked = prefs.mirror;
+    $('settingNoise').checked = prefs.noise;
     if (st.background === 'gradient-violet') prefs.background = 'soft';
     applyCameraLook();
   }

@@ -106,48 +106,14 @@
 
       <aside class="people-panel" id="peoplePanel" aria-label="People and studio settings">
         <div class="people-head">
-          <h2>People</h2>
+          <h2>People <span class="badge" id="panelGuests">1</span></h2>
           <button class="icon-btn" type="button" id="peopleClose" aria-label="Close panel" style="width:30px;height:30px"><i data-i="x"></i></button>
         </div>
         <div class="people-body">
-          <div class="people-block">
-            <span class="label">Episode</span>
-            <div class="people-meta">
-              <strong id="panelEpisode" style="font-size:13px;display:block">Recording studio</strong>
-              <small id="panelMeta">Not scheduled</small>
-            </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-              <span class="badge" id="panelGuests">0 guests</span>
-              <button class="link-btn" type="button" id="panelInviteBtn"><i data-i="link"></i> Copy invite</button>
-            </div>
-          </div>
-
-          <div class="people-block">
-            <span class="label">In the studio</span>
-            <div id="peopleList"></div>
-          </div>
-
-          <div class="people-block">
-            <span class="label">Studio controls</span>
-            <div class="switch-row"><span>Mirror my camera</span>
-              <label class="switch"><input type="checkbox" id="mirrorToggle" checked><span></span></label>
-            </div>
-            <div class="switch-row"><span>Blur my background</span>
-              <label class="switch"><input type="checkbox" id="blurToggle"><span></span></label>
-            </div>
-            <div class="switch-row"><span>Noise suppression</span>
-              <label class="switch"><input type="checkbox" id="noiseToggle" checked><span></span></label>
-            </div>
-          </div>
-
-          <div class="people-block">
-            <span class="label">Connection</span>
-            <div class="people-meta" style="display:flex;align-items:center;gap:8px">
-              <i data-i="signal" data-cls="sm" style="color:var(--green)"></i>
-              <span>Direct peer-to-peer studio room</span>
-            </div>
-            <p class="hint">Guests join from their own link and connect straight to you — camera, microphone and shared media travel peer to peer. The recording itself is captured in this browser.</p>
-          </div>
+          <div id="peopleList"></div>
+        </div>
+        <div class="people-foot">
+          <button class="btn btn-soft btn-block" type="button" id="panelInviteBtn"><i data-i="link"></i> Copy invite link</button>
         </div>
       </aside>
     </div>
@@ -300,6 +266,12 @@
         <div class="field">
           <label for="settingEpisode"><i data-i="file"></i> Episode name for the recording</label>
           <input class="input" id="settingEpisode" maxlength="100" placeholder="Untitled episode">
+        </div>
+        <div class="switch-row"><span>Mirror my camera</span>
+          <label class="switch"><input type="checkbox" id="settingMirror" checked><span></span></label>
+        </div>
+        <div class="switch-row"><span>Noise suppression</span>
+          <label class="switch"><input type="checkbox" id="settingNoise" checked><span></span></label>
         </div>
       </div>
       <div class="modal-foot">
